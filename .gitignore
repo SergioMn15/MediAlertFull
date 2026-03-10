@@ -1,0 +1,29 @@
+# MediAlertV3 - Git Ignore
+
+# Variables de entorno (sensible)
+.env
+
+# Dependencias node_modules
+node_modules/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Archivos de编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Base de datos SQLite local (si se usa)
+*.db
+*.sqlite
+
+# Backup
+*.bak
+
