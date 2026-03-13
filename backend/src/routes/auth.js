@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'medialert_secret_key_2024';
 // Generar token JWT
 function generateToken(user) {
   return jwt.sign(
-    { id: user.id, username: user.username || user.curp, role: user.role, name: user.name },
+    { id: user.id, username: user.username || user.curp, curp: user.curp || null, role: user.role, name: user.name },
     JWT_SECRET,
     { expiresIn: '24h' }
   );

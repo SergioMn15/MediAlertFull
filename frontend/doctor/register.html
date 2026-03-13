@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Panel Doctor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="doctor-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Alta de paciente</h2>
+            <p>Registra nuevos pacientes y consulta tu resumen rapido.</p>
+          </div>
+        </div>
+
+        <section class="dashboard-grid">
+          <div class="stack">
+            <article class="form-card">
+              <form id="register-patient-form">
+                <div class="form-group">
+                  <label for="patient-curp-input">CURP</label>
+                  <input type="text" id="patient-curp-input" maxlength="18" placeholder="TEST010101HDFAAA09" required>
+                </div>
+                <div class="form-group">
+                  <label for="patient-name-input">Nombre completo</label>
+                  <input type="text" id="patient-name-input" placeholder="Nombre del paciente" required>
+                </div>
+                <div class="form-group">
+                  <label for="patient-password">Contrasena temporal</label>
+                  <input type="password" id="patient-password" minlength="6" placeholder="Minimo 6 caracteres" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Registrar paciente</button>
+                <p id="register-result" class="form-message"></p>
+              </form>
+            </article>
+
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Pacientes</h2>
+                  <p>Listado rapido asociado a tu cuenta.</p>
+                </div>
+              </div>
+              <div id="doctor-patient-list" class="medication-list"></div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Perfil</h2>
+                  <p>Resumen profesional.</p>
+                </div>
+              </div>
+              <div id="doctor-profile"></div>
+            </section>
+
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Proximas citas</h2>
+                  <p>Agenda general de tus pacientes.</p>
+                </div>
+              </div>
+              <div id="doctor-appointments" class="appointment-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/doctor.js"></script>
+</body>
+</html>

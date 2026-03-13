@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="MediAlert - Portal para pacientes y doctores">
+  <meta name="theme-color" content="#127c68">
+  <title>MediAlert</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="loading-screen" class="loading-screen">
+    <div class="loading-spinner">
+      <div class="spinner"></div>
+      <p>Cargando MediAlert...</p>
+    </div>
+  </div>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-shell">
+    <header class="main-header" id="header-container"></header>
+
+    <main class="hero-grid">
+      <section class="hero-panel">
+        <span class="eyebrow"><i class="fa-solid fa-shield-heart"></i> Portal clinico simple</span>
+        <h1>Controla recetas, citas y seguimiento desde un solo lugar.</h1>
+        <p>MediAlert conecta al doctor con el paciente en una interfaz clara, rapida y lista para demo o base de datos real.</p>
+
+        <div class="hero-metrics">
+          <div class="metric">
+            <strong>24/7</strong>
+            <span>Acceso a receta digital</span>
+          </div>
+          <div class="metric">
+            <strong>1 clic</strong>
+            <span>Agenda de citas</span>
+          </div>
+          <div class="metric">
+            <strong>Demo</strong>
+            <span>Lista para pruebas</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="login-card">
+        <div class="login-header">
+          <div class="login-logo">
+            <i class="fa-solid fa-heart-pulse"></i>
+          </div>
+          <h2>Iniciar sesion</h2>
+          <p>Accede con usuario de doctor o CURP de paciente.</p>
+        </div>
+
+        <form id="login-form" class="login-form">
+          <div class="form-group">
+            <label for="credential">CURP o usuario</label>
+            <input type="text" id="credential" placeholder="TEST010101HDFAAA09 o doctor1" required>
+          </div>
+
+          <div class="form-group">
+            <label for="password">Contrasena</label>
+            <div class="password-input">
+              <input type="password" id="password" placeholder="Ingresa tu contrasena" required>
+              <button type="button" id="toggle-password" class="toggle-password" aria-label="Mostrar u ocultar contrasena">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block">
+            <i class="fa-solid fa-right-to-bracket"></i>
+            Entrar al portal
+          </button>
+        </form>
+
+        <div class="demo-strip">
+          <strong>Credenciales demo</strong>
+          <div class="demo-grid">
+            <div class="demo-card">
+              <strong>Doctor</strong>
+              <span>Usuario: doctor1</span><br>
+              <span>Contrasena: medialert123</span>
+            </div>
+            <div class="demo-card">
+              <strong>Paciente</strong>
+              <span>CURP: TEST010101HDFAAA09</span><br>
+              <span>Contrasena: paciente123</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="feature-panel">
+      <div class="feature-grid">
+        <article class="feature-card">
+          <i class="fa-solid fa-pills"></i>
+          <h3>Recetas activas</h3>
+          <p>Consulta horarios, dosis y observaciones desde el panel del paciente.</p>
+        </article>
+        <article class="feature-card">
+          <i class="fa-solid fa-calendar-check"></i>
+          <h3>Citas ordenadas</h3>
+          <p>El paciente agenda y revisa su siguiente consulta sin depender de llamadas.</p>
+        </article>
+        <article class="feature-card">
+          <i class="fa-solid fa-user-doctor"></i>
+          <h3>Vista para doctor</h3>
+          <p>Alta de pacientes y acceso al estado general desde una sola pantalla.</p>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/api.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

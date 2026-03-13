@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Mi Receta</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="patient-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Mi receta medica</h2>
+            <p>Consulta tus medicamentos prescritos y exporta una copia rapida.</p>
+          </div>
+        </div>
+
+        <section class="recipe-card">
+          <div class="recipe-header">
+            <div class="recipe-logo">
+              <i class="fa-solid fa-file-prescription"></i>
+            </div>
+            <div>
+              <h3>Receta digital</h3>
+              <p id="recipe-doctor">Doctor: Cargando...</p>
+              <p id="recipe-date">Ultima actualizacion: Cargando...</p>
+            </div>
+          </div>
+
+          <div id="medication-list" class="medication-list"></div>
+
+          <div class="recipe-actions">
+            <button id="download-pdf" class="btn btn-primary" type="button">
+              <i class="fa-solid fa-file-arrow-down"></i>
+              Descargar o imprimir
+            </button>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/patient.js"></script>
+</body>
+</html>
