@@ -1,13 +1,16 @@
 (function () {
   async function initPatientPage() {
-    // Fix timing: Esperar main.js y user válido
-    await new Promise(resolve => setTimeout(resolve, 100));
     const app = window.MediAlertMain;
     if (!window.location.pathname.includes('/patient/')) {
       return;
     }
 
-    if (!app?.state?.user || !app.requireRole('patient')) {
+    if (!app?.state?.user) {
+      app?.logout(false);
+      return;
+    }
+
+    if (!app.requireRole('patient')) {
       return;
     }
 
@@ -137,9 +140,11 @@
 
   function bindAppointmentForm(patient) {
     const form = document.getElementById('appointment-form');
-    if (!form) {
+    if (!form || form.dataset.bound === 'true') {
       return;
     }
+
+    form.dataset.bound = 'true';
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -179,5 +184,15 @@
     });
   }
 
-  document.addEventListener('DOMContentLoaded', initPatientPage);
+  function bootstrapPatientPage() {
+    const app = window.MediAlertMain;
+    if (app?.isReady) {
+      initPatientPage();
+      return;
+    }
+
+    document.addEventListener('medialert:ready', initPatientPage, { once: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', bootstrapPatientPage);
 })();

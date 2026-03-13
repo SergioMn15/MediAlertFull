@@ -3,12 +3,19 @@ const MediAlert = {
     user: null,
     token: localStorage.getItem('medialert_token')
   },
+  isReady: false,
 
   async init() {
     await this.loadSharedComponents();
     this.updateHeader();
     this.bindCommonEvents();
     await this.restoreSession();
+    this.isReady = true;
+    document.dispatchEvent(new CustomEvent('medialert:ready', {
+      detail: {
+        user: this.state.user
+      }
+    }));
     this.hideLoading();
   },
 
@@ -70,7 +77,6 @@ const MediAlert = {
 
       this.state.user = user;
       this.updateHeader();
-      this.redirectIfNeeded();
     } catch (error) {
       this.logout(false);
     }
@@ -96,13 +102,6 @@ const MediAlert = {
 
   redirectByRole(role) {
     window.location.href = role === 'doctor' ? '/doctor/register.html' : '/patient/dashboard.html';
-  },
-
-  redirectIfNeeded() {
-    const path = window.location.pathname;
-    if (path === '/' || path.endsWith('/index.html')) {
-      this.redirectByRole(this.state.user.role);
-    }
   },
 
   updateHeader() {

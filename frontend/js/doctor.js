@@ -1,13 +1,16 @@
 (function () {
   async function initDoctorPage() {
-    // Fix timing: Esperar main.js y user válido
-    await new Promise(resolve => setTimeout(resolve, 100));
     const app = window.MediAlertMain;
     if (!window.location.pathname.includes('/doctor/')) {
       return;
     }
 
-    if (!app?.state?.user || !app.requireRole('doctor')) {
+    if (!app?.state?.user) {
+      app?.logout(false);
+      return;
+    }
+
+    if (!app.requireRole('doctor')) {
       return;
     }
 
@@ -86,9 +89,11 @@
 
   function bindRegisterForm() {
     const form = document.getElementById('register-patient-form');
-    if (!form) {
+    if (!form || form.dataset.bound === 'true') {
       return;
     }
+
+    form.dataset.bound = 'true';
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -96,19 +101,42 @@
       const name = document.getElementById('patient-name-input').value.trim();
       const password = document.getElementById('patient-password').value.trim();
       const result = document.getElementById('register-result');
+      const submitButton = form.querySelector('button[type="submit"]');
+
+      result.textContent = '';
+      result.className = 'form-message';
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
 
       try {
         await window.MediAlertAPI.registerPatient(curp, name, password);
         result.textContent = 'Paciente registrado correctamente.';
         result.className = 'form-message success';
+        window.MediAlertMain.showToast('Paciente registrado correctamente.', 'success');
         form.reset();
-        loadDoctorSummary();
+        await loadDoctorSummary();
       } catch (error) {
         result.textContent = error.message;
         result.className = 'form-message error';
+        window.MediAlertMain.showToast(error.message, 'error');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
       }
     });
   }
 
-  document.addEventListener('DOMContentLoaded', initDoctorPage);
+  function bootstrapDoctorPage() {
+    const app = window.MediAlertMain;
+    if (app?.isReady) {
+      initDoctorPage();
+      return;
+    }
+
+    document.addEventListener('medialert:ready', initDoctorPage, { once: true });
+  }
+
+  document.addEventListener('DOMContentLoaded', bootstrapDoctorPage);
 })();
