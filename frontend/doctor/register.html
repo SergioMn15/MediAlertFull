@@ -63,11 +63,11 @@
             <section>
               <div class="content-header">
                 <div>
-                  <h2>Perfil</h2>
-                  <p>Resumen profesional.</p>
+                  <h2>Resumen del paciente</h2>
+                  <p>Vista previa automatica a partir de la CURP capturada.</p>
                 </div>
               </div>
-              <div id="doctor-profile"></div>
+              <div id="patient-curp-summary"></div>
             </section>
 
             <section>
@@ -92,6 +92,50 @@
           </div>
         </section>
       </main>
+    </div>
+  </div>
+
+  <div id="request-modal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal-card">
+      <div class="content-header">
+        <div>
+          <h2 id="request-modal-title">Gestionar solicitud</h2>
+          <p id="request-modal-subtitle">Define la respuesta para esta solicitud de cita.</p>
+        </div>
+        <button id="request-modal-close" class="btn btn-outline btn-small" type="button">Cerrar</button>
+      </div>
+
+      <form id="request-modal-form" class="modal-form">
+        <input type="hidden" id="request-modal-id">
+        <input type="hidden" id="request-modal-action">
+
+        <div class="form-group">
+          <label for="request-modal-patient">Paciente</label>
+          <input type="text" id="request-modal-patient" readonly>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="request-modal-date">Fecha</label>
+            <input type="date" id="request-modal-date">
+          </div>
+          <div class="form-group">
+            <label for="request-modal-time">Hora</label>
+            <input type="time" id="request-modal-time">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="request-modal-response">Mensaje para el paciente</label>
+          <textarea id="request-modal-response" rows="3" placeholder="Escribe una respuesta breve"></textarea>
+        </div>
+
+        <div class="pill-row">
+          <button id="request-modal-submit" class="btn btn-primary" type="submit">Guardar decision</button>
+          <button id="request-modal-cancel" class="btn btn-outline" type="button">Cancelar</button>
+        </div>
+        <p id="request-modal-message" class="form-message"></p>
+      </form>
     </div>
   </div>
 
