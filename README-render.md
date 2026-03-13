@@ -10,13 +10,18 @@
 
 ## Environment Variables
 ```env
-DATABASE_URL=postgres://user:pass@host:port/medialert?sslmode=require
+DATABASE_URL=postgres://user:pass@host:port/defaultdb?sslmode=require
 ```
 
-## DB `medialert` detection
+Si Aiven te da certificado CA, tambien puedes agregar:
+```env
+DATABASE_CA_CERT="-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----"
+```
+
+## DB detectada desde `DATABASE_URL`
 `DATABASE_URL` incluye el nombre de la base:
 ```text
-postgres://user:pass@host:port/medialert
+postgres://user:pass@host:port/defaultdb
 ```
 
 ## Test
