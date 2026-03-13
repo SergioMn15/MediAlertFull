@@ -61,12 +61,7 @@ function mapPrescriptionItemToMedication(item, prescription, doctorName = 'Docto
 async function getActivePrescriptionFromDb(patientId) {
   const { query } = require('../config/db');
   const prescriptionResult = await query(
-    `SELECT p.*, d.name AS doctor_name
-     FROM prescriptions p
-     LEFT JOIN doctors d ON d.id = p.doctor_id
-     WHERE p.patient_id = $1 AND p.status = 'active'
-     ORDER BY p.issued_at DESC
-     LIMIT 1`,
+    'SELECT p.*, d.name AS doctor_name FROM prescriptions p LEFT JOIN doctors d ON d.id = p.doctor_id WHERE p.patient_id = $1 AND p.status = "active" ORDER BY p.issued_at DESC LIMIT 1',
     [patientId]
   );
 
@@ -76,10 +71,7 @@ async function getActivePrescriptionFromDb(patientId) {
 
   const prescription = prescriptionResult.rows[0];
   const itemsResult = await query(
-    `SELECT *
-     FROM prescription_items
-     WHERE prescription_id = $1
-     ORDER BY time ASC, id ASC`,
+    'SELECT * FROM prescription_items WHERE prescription_id = $1 ORDER BY time ASC, id ASC',
     [prescription.id]
   );
 
@@ -108,9 +100,7 @@ router.get('/profile', verifyToken, requireDoctor, async (req, res) => {
     if (isDb) {
       const { query } = require('../config/db');
       const result = await query(
-        `SELECT id, username, email, name, license, specialty, created_at
-         FROM doctors
-         WHERE id = $1`,
+        'SELECT id, username, email, name, license, specialty, created_at FROM doctors WHERE id = $1',
         [req.user.id]
       );
 
@@ -152,10 +142,7 @@ router.get('/:id/patients', verifyToken, requireDoctor, async (req, res) => {
     if (isDb) {
       const { query } = require('../config/db');
       const result = await query(
-        `SELECT id, curp, name, created_at
-         FROM patients
-         WHERE doctor_id = $1
-         ORDER BY created_at DESC`,
+        'SELECT id, curp, name, created_at FROM patients WHERE doctor_id = $1 ORDER BY created_at DESC',
         [id]
       );
 
@@ -206,12 +193,16 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
   try {
     const { curp, diagnosis, general_instructions, items } = req.body;
 
+    console.log('🎉 Creando receta para CURP:', curp, '- Items recibidos:', items?.length || 0, '- Primer item:', items?.[0]?.name || 'N/A');
+
     if (!curp || !Array.isArray(items) || items.length === 0) {
+      console.log('❌ Error validacion: items vacio o no array');
       return res.status(400).json({ error: 'Se requiere paciente y al menos un medicamento' });
     }
 
     const invalidItem = items.find((item) => !item.name || !item.dose_mg || !item.time);
     if (invalidItem) {
+      console.log('❌ Item invalido:', invalidItem);
       return res.status(400).json({ error: 'Cada medicamento debe tener nombre, dosis y horario' });
     }
 
@@ -226,6 +217,7 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
       );
 
       if (patientResult.rows.length === 0) {
+        console.log('❌ Paciente no encontrado para:', curp);
         return res.status(404).json({ error: 'Paciente no encontrado o no asignado al doctor' });
       }
 
@@ -233,19 +225,17 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
       await query('UPDATE prescriptions SET status = $1 WHERE patient_id = $2 AND status = $3', ['completed', patientId, 'active']);
 
       const prescriptionResult = await query(
-        `INSERT INTO prescriptions (patient_id, doctor_id, diagnosis, general_instructions, status)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
+        'INSERT INTO prescriptions (patient_id, doctor_id, diagnosis, general_instructions, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [patientId, req.user.id, diagnosis || '', general_instructions || '', 'active']
       );
 
       const prescription = prescriptionResult.rows[0];
       const insertedItems = [];
+      console.log('📝 Insertando', items.length, 'items a prescription', prescription.id);
+      
       for (const item of items) {
         const itemResult = await query(
-          `INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, time, duration_days, notes, emoji)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-           RETURNING *`,
+          'INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, time, duration_days, notes, emoji) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
           [
             prescription.id,
             item.name,
@@ -259,10 +249,11 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
         );
         insertedItems.push(itemResult.rows[0]);
       }
+      console.log('✅ Insertados', insertedItems.length, 'items. Respuesta OK');
 
       return res.status(201).json({
         success: true,
-        message: 'Receta medica creada correctamente',
+        message: 'Receta medica con ' + insertedItems.length + ' medicamentos creada correctamente',
         prescription: {
           ...prescription,
           doctor_name: req.user.name,
@@ -311,17 +302,61 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
     demo.prescriptions[patient.id].unshift(prescription);
     demo.medications[patient.id] = prescription.items.map((item) => mapPrescriptionItemToMedication(item, prescription, req.user.name));
 
+    console.log('✅ Demo: Receta creada con', prescription.items.length, 'items');
+
     return res.status(201).json({
       success: true,
-      message: 'Receta medica creada correctamente',
+      message: 'Receta medica con ' + prescription.items.length + ' medicamentos creada correctamente',
       prescription: {
         ...prescription,
         doctor_name: req.user.name
       }
     });
   } catch (error) {
-    console.error('Error al crear receta medica:', error);
+    console.error('💥 Error al crear receta medica:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.get('/:id/reports/prescriptions', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const isDb = useDatabase(req);
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const result = await query(
+        'SELECT p.id, p.diagnosis, p.general_instructions, p.status, p.issued_at, d.name as doctor_name, COUNT(pi.id) as items_count, STRING_AGG(pi.name, \', \') as medications_list FROM prescriptions p LEFT JOIN doctors d ON d.id = p.doctor_id LEFT JOIN prescription_items pi ON pi.prescription_id = p.id WHERE p.doctor_id = $1 GROUP BY p.id, d.name ORDER BY p.issued_at DESC',
+        [id]
+      );
+
+      return res.json({ success: true, reports: result.rows });
+    }
+
+    const demo = getDemoData(req);
+    const doctor = Object.values(demo.doctors).find(d => d.id === parseInt(id, 10));
+    if (!doctor) return res.status(404).json({ error: 'Doctor no encontrado' });
+
+    const reports = [];
+    Object.entries(demo.prescriptions).forEach(([patientId, prescriptions]) => {
+      prescriptions.forEach(prescription => {
+        reports.push({
+          id: prescription.id,
+          diagnosis: prescription.diagnosis,
+          general_instructions: prescription.general_instructions,
+          status: prescription.status,
+          issued_at: prescription.issued_at,
+          doctor_name: doctor.name,
+          items_count: prescription.items.length,
+          medications_list: prescription.items.map(i => i.name).join(', ')
+        });
+      });
+    });
+
+    return res.json({ success: true, reports });
+  } catch (error) {
+    console.error('Error en reporte prescriptions:', error);
+    return res.status(500).json({ error: 'Error en reporte' });
   }
 });
 
@@ -334,11 +369,7 @@ router.get('/:id/appointments', verifyToken, requireDoctor, async (req, res) => 
     if (isDb) {
       const { query } = require('../config/db');
       const result = await query(
-        `SELECT a.id, a.date, a.time, a.status, a.created_at, p.name AS patient_name, p.curp
-         FROM appointments a
-         JOIN patients p ON p.id = a.patient_id
-         WHERE p.doctor_id = $1
-         ORDER BY a.date ASC, a.time ASC`,
+        'SELECT a.id, a.date, a.time, a.status, a.created_at, p.name AS patient_name, p.curp FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE p.doctor_id = $1 ORDER BY a.date ASC, a.time ASC',
         [id]
       );
       return res.json({ success: true, appointments: result.rows });
@@ -357,7 +388,11 @@ router.get('/:id/appointments', verifyToken, requireDoctor, async (req, res) => 
         });
       });
 
-    appointments.sort((left, right) => new Date(`${left.date}T${left.time}`) - new Date(`${right.date}T${right.time}`));
+    appointments.sort((left, right) => {
+      const leftDate = new Date(left.date + 'T' + left.time);
+      const rightDate = new Date(right.date + 'T' + right.time);
+      return leftDate - rightDate;
+    });
     return res.json({ success: true, appointments });
   } catch (error) {
     console.error('Error al obtener citas:', error);
@@ -374,18 +409,7 @@ router.get('/:id/appointment-requests', verifyToken, requireDoctor, async (req, 
     if (isDb) {
       const { query } = require('../config/db');
       const result = await query(
-        `SELECT ar.*, p.name AS patient_name, p.curp
-         FROM appointment_requests ar
-         JOIN patients p ON p.id = ar.patient_id
-         WHERE p.doctor_id = $1
-         ORDER BY
-           CASE ar.status
-             WHEN 'pending' THEN 0
-             WHEN 'approved' THEN 1
-             WHEN 'rejected' THEN 2
-             ELSE 3
-           END,
-           ar.created_at DESC`,
+        "SELECT ar.*, p.name AS patient_name, p.curp FROM appointment_requests ar JOIN patients p ON p.id = ar.patient_id WHERE p.doctor_id = $1 ORDER BY CASE ar.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 WHEN 'rejected' THEN 2 ELSE 3 END, ar.created_at DESC",
         [id]
       );
 
@@ -440,10 +464,7 @@ router.post('/appointment-requests/:requestId/review', verifyToken, requireDocto
     if (isDb) {
       const { query } = require('../config/db');
       const requestResult = await query(
-        `SELECT ar.*, p.doctor_id
-         FROM appointment_requests ar
-         JOIN patients p ON p.id = ar.patient_id
-         WHERE ar.id = $1`,
+        "SELECT ar.*, p.doctor_id FROM appointment_requests ar JOIN patients p ON p.id = ar.patient_id WHERE ar.id = $1",
         [requestId]
       );
 
@@ -462,19 +483,14 @@ router.post('/appointment-requests/:requestId/review', verifyToken, requireDocto
 
       const status = action === 'approve' ? 'approved' : 'rejected';
       const updatedRequest = await query(
-        `UPDATE appointment_requests
-         SET status = $1, doctor_response = $2, reviewed_at = CURRENT_TIMESTAMP
-         WHERE id = $3
-         RETURNING *`,
+        "UPDATE appointment_requests SET status = $1, doctor_response = $2, reviewed_at = CURRENT_TIMESTAMP WHERE id = $3 RETURNING *",
         [status, response || '', requestId]
       );
 
       let appointment = null;
       if (action === 'approve') {
         const appointmentResult = await query(
-          `INSERT INTO appointments (patient_id, date, time, status)
-           VALUES ($1, $2, $3, $4)
-           RETURNING *`,
+          "INSERT INTO appointments (patient_id, date, time, status) VALUES ($1, $2, $3, $4) RETURNING *",
           [appointmentRequest.patient_id, scheduled_date, scheduled_time, 'scheduled']
         );
         appointment = appointmentResult.rows[0];
@@ -544,3 +560,4 @@ router.post('/appointment-requests/:requestId/review', verifyToken, requireDocto
 });
 
 module.exports = router;
+

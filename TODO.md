@@ -1,1 +1,29 @@
-# Progreso Correcciones MediAlertV3 ✅\n\n## ✅ TODO CORREGIDO\n- [x] Servidor correcto: **server.js RAÍZ** (monolítico, frontend+API).\n- [x] backend/server.js limpiado (era incompleto).\n- [x] Dependencias instaladas (`npm install`).\n- [x] Server corriendo: **http://localhost:3000** (modo demo activo).\n- [x] API health OK.\n- [x] Rutas funcionales (auth/patients/doctors).\n\n## � Cómo usar:\n1. Abre **http://localhost:3000**.\n2. **Doctor**: doctor1 / medialert123 → Registra pacientes, recetas.\n3. **Paciente**: TEST010101HDFAAA09 / paciente123 → Medicamentos/citas.\n\n## 🔧 Opcional:\n- PostgreSQL: Copia `.env.example` → `.env`.\n- Parar server: Ctrl+C.\n\n**¡App lista y funcionando perfecto!** 🎉
+# TODO - Mejoras Recetas Múltiples MediAlertV3
+
+## Estado: ✅ En progreso (3/5 completado)
+
+### 1. [ ] Crear TODO.md ✅ **(Completado)**
+   - Seguimiento de pasos.
+
+### 2. [✅] Optimizar frontend/js/doctor.js (Draft UI)
+   - Persistir draft en localStorage.
+   - Contador items, validaciones visuales.
+   - Refresh auto post-submit.
+
+### 3. [✅] Editar backend/src/routes/doctors.js (Logs + Reporte)
+   - Console.log items recibidos.
+   - Nueva ruta GET /reports/prescriptions para futuro.
+
+### 4. [ ] Test manual
+   - `npm start`
+   - Crear receta con 3 medicamentos.
+   - Verificar DB: 1 prescription + 3 items.
+   - Ver lista paciente.
+
+### 5. [ ] Limpiar TODO.md y completar ✅
+
+**Notas:** 
+- Backend ya soporta múltiples (array items → loop insert).
+- Focus: UI draft + persistencia para UX doctor.
+- Futuro: Notificaciones (Cron job medicamentos por time).
+
