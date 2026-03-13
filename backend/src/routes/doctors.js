@@ -30,7 +30,7 @@ function requireDoctor(req, res, next) {
 
 // Obtener datos demo
 function getDemoData(req) {
-  return req.app.get('demoData') || { doctors: {}, patients: {}, medications: {}, appointments: {} };
+  return req.app.get('demoData') || { doctors: {}, patients: {}, medications: {}, appointments: {}, appointmentRequests: {} };
 }
 
 function useDatabase(req) {
@@ -172,6 +172,189 @@ router.get('/:id/appointments', verifyToken, requireDoctor, async (req, res) => 
 
   } catch (error) {
     console.error('Error al obtener citas:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// GET /api/doctors/:id/appointment-requests - Obtener solicitudes de cita
+router.get('/:id/appointment-requests', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    if (isDb) {
+      const { query } = require('../config/db');
+
+      const result = await query(`
+        SELECT ar.*, p.name AS patient_name, p.curp
+        FROM appointment_requests ar
+        JOIN patients p ON p.id = ar.patient_id
+        WHERE p.doctor_id = $1
+        ORDER BY
+          CASE ar.status
+            WHEN 'pending' THEN 0
+            WHEN 'approved' THEN 1
+            WHEN 'rejected' THEN 2
+            ELSE 3
+          END,
+          ar.created_at DESC
+      `, [id]);
+
+      return res.json({ success: true, requests: result.rows });
+    }
+
+    const requests = [];
+    Object.values(demo.patients)
+      .filter(p => p.doctor_id === parseInt(id))
+      .forEach((patient) => {
+        const patientRequests = demo.appointmentRequests[patient.id] || [];
+        patientRequests.forEach((request) => {
+          requests.push({
+            ...request,
+            patient_name: patient.name,
+            curp: patient.curp
+          });
+        });
+      });
+
+    requests.sort((a, b) => {
+      const order = { pending: 0, approved: 1, rejected: 2 };
+      const left = order[a.status] ?? 3;
+      const right = order[b.status] ?? 3;
+      if (left !== right) return left - right;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+    res.json({ success: true, requests });
+  } catch (error) {
+    console.error('Error al obtener solicitudes de cita:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// POST /api/doctors/appointment-requests/:requestId/review - Aprobar/rechazar solicitud
+router.post('/appointment-requests/:requestId/review', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const { action, response, scheduled_date, scheduled_time } = req.body;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ error: 'Accion invalida' });
+    }
+
+    if (action === 'approve' && (!scheduled_date || !scheduled_time)) {
+      return res.status(400).json({ error: 'Faltan fecha u hora para aprobar la solicitud' });
+    }
+
+    if (isDb) {
+      const { query } = require('../config/db');
+
+      const requestResult = await query(`
+        SELECT ar.*, p.doctor_id, p.name AS patient_name, p.curp
+        FROM appointment_requests ar
+        JOIN patients p ON p.id = ar.patient_id
+        WHERE ar.id = $1
+      `, [requestId]);
+
+      if (requestResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Solicitud no encontrada' });
+      }
+
+      const appointmentRequest = requestResult.rows[0];
+      if (appointmentRequest.doctor_id !== req.user.id) {
+        return res.status(403).json({ error: 'No puedes gestionar solicitudes de otro doctor' });
+      }
+
+      if (appointmentRequest.status !== 'pending') {
+        return res.status(400).json({ error: 'La solicitud ya fue procesada' });
+      }
+
+      const status = action === 'approve' ? 'approved' : 'rejected';
+      const updatedRequest = await query(
+        `UPDATE appointment_requests
+         SET status = $1, doctor_response = $2, reviewed_at = CURRENT_TIMESTAMP
+         WHERE id = $3
+         RETURNING *`,
+        [status, response || '', requestId]
+      );
+
+      let appointment = null;
+      if (action === 'approve') {
+        const appointmentResult = await query(
+          `INSERT INTO appointments (patient_id, date, time, status)
+           VALUES ($1, $2, $3, $4)
+           RETURNING *`,
+          [appointmentRequest.patient_id, scheduled_date, scheduled_time, 'scheduled']
+        );
+        appointment = appointmentResult.rows[0];
+      }
+
+      return res.json({
+        success: true,
+        message: action === 'approve' ? 'Solicitud aprobada y cita creada' : 'Solicitud rechazada',
+        request: updatedRequest.rows[0],
+        appointment
+      });
+    }
+
+    let targetPatient = null;
+    let targetRequest = null;
+
+    Object.values(demo.patients)
+      .filter(patient => patient.doctor_id === req.user.id)
+      .some((patient) => {
+        const requests = demo.appointmentRequests[patient.id] || [];
+        const request = requests.find(item => item.id === parseInt(requestId));
+        if (request) {
+          targetPatient = patient;
+          targetRequest = request;
+          return true;
+        }
+        return false;
+      });
+
+    if (!targetRequest || !targetPatient) {
+      return res.status(404).json({ error: 'Solicitud no encontrada' });
+    }
+
+    if (targetRequest.status !== 'pending') {
+      return res.status(400).json({ error: 'La solicitud ya fue procesada' });
+    }
+
+    targetRequest.status = action === 'approve' ? 'approved' : 'rejected';
+    targetRequest.doctor_response = response || '';
+    targetRequest.reviewed_at = new Date().toISOString();
+
+    let appointment = null;
+    if (action === 'approve') {
+      const newAppointmentId = (demo.appointments[targetPatient.id]?.length || 0) + 1;
+      appointment = {
+        id: newAppointmentId,
+        patient_id: targetPatient.id,
+        date: scheduled_date,
+        time: scheduled_time,
+        status: 'scheduled',
+        created_at: new Date().toISOString()
+      };
+
+      if (!demo.appointments[targetPatient.id]) {
+        demo.appointments[targetPatient.id] = [];
+      }
+
+      demo.appointments[targetPatient.id].unshift(appointment);
+    }
+
+    res.json({
+      success: true,
+      message: action === 'approve' ? 'Solicitud aprobada y cita creada' : 'Solicitud rechazada',
+      request: targetRequest,
+      appointment
+    });
+  } catch (error) {
+    console.error('Error al revisar solicitud de cita:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

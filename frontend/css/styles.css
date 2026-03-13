@@ -189,12 +189,23 @@ textarea {
   border: 1px solid var(--line);
 }
 
+.btn-secondary {
+  color: #fff;
+  background: linear-gradient(135deg, #b55a44, #cf4b4b);
+  box-shadow: 0 14px 28px rgba(181, 90, 68, 0.22);
+}
+
 .btn-block {
   width: 100%;
 }
 
 .btn-sm {
   padding: 0.7rem 1rem;
+}
+
+.btn-small {
+  padding: 0.65rem 0.9rem;
+  font-size: 0.92rem;
 }
 
 .hero-grid {
@@ -576,6 +587,27 @@ textarea {
 .status-badge.pending {
   background: rgba(240, 141, 73, 0.14);
   color: #a95d25;
+}
+
+.status-badge.approved {
+  background: rgba(23, 155, 103, 0.12);
+  color: var(--success);
+}
+
+.status-badge.rejected {
+  background: rgba(207, 75, 75, 0.14);
+  color: var(--danger);
+}
+
+.status-badge.scheduled {
+  background: rgba(18, 124, 104, 0.12);
+  color: var(--primary-dark);
+}
+
+.request-actions {
+  display: grid;
+  justify-items: end;
+  gap: 0.6rem;
 }
 
 .empty-state {

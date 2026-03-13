@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Mi Perfil</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="patient-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Mi Perfil</h2>
+            <p>Resumen general de tu cuenta en MediAlert.</p>
+          </div>
+        </div>
+
+        <section class="dashboard-grid">
+          <div class="stack">
+            <article class="info-card">
+              <strong id="profile-name">Paciente</strong>
+              <div class="med-meta" id="profile-curp">CURP</div>
+              <p id="profile-created-at">Registro en sistema</p>
+            </article>
+
+            <article class="form-card">
+              <div class="content-header">
+                <div>
+                  <h2>Actividad</h2>
+                  <p>Conteo actual de tu seguimiento medico.</p>
+                </div>
+              </div>
+              <div class="stats-grid">
+                <article class="stat-card">
+                  <span>Medicamentos</span>
+                  <strong id="stat-medications">0</strong>
+                </article>
+                <article class="stat-card">
+                  <span>Citas</span>
+                  <strong id="stat-appointments">0</strong>
+                </article>
+                <article class="stat-card">
+                  <span>Proxima toma</span>
+                  <strong id="stat-next-dose">Sin horario</strong>
+                </article>
+              </div>
+            </article>
+          </div>
+
+          <div class="stack">
+            <article id="next-medication-card" class="info-card"></article>
+            <article id="next-appointment-card" class="info-card"></article>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/patient.js"></script>
+</body>
+</html>

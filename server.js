@@ -89,7 +89,8 @@ function createEmptyDemoData() {
     doctors: {},
     patients: {},
     medications: {},
-    appointments: {}
+    appointments: {},
+    appointmentRequests: {}
   };
 }
 
@@ -146,7 +147,7 @@ function initializeDemoData() {
       patient_id: 1,
       date: '2026-03-20',
       time: '10:00:00',
-      status: 'pending',
+      status: 'scheduled',
       created_at: new Date().toISOString()
     }
   ];
@@ -196,12 +197,26 @@ async function ensureDatabaseSchema() {
   `);
 
   await db.query(`
+    CREATE TABLE IF NOT EXISTS appointment_requests (
+      id SERIAL PRIMARY KEY,
+      patient_id INTEGER REFERENCES patients(id) ON DELETE CASCADE,
+      requested_date DATE NOT NULL,
+      requested_time TIME NOT NULL,
+      reason TEXT,
+      status VARCHAR(20) DEFAULT 'pending',
+      doctor_response TEXT,
+      reviewed_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS appointments (
       id SERIAL PRIMARY KEY,
       patient_id INTEGER REFERENCES patients(id) ON DELETE CASCADE,
       date DATE NOT NULL,
       time TIME NOT NULL,
-      status VARCHAR(20) DEFAULT 'pending',
+      status VARCHAR(20) DEFAULT 'scheduled',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);

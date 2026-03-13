@@ -37,13 +37,15 @@
     const profileBox = document.getElementById('doctor-profile');
     const patientsBox = document.getElementById('doctor-patient-list');
     const appointmentsBox = document.getElementById('doctor-appointments');
+    const requestBox = document.getElementById('doctor-request-list');
 
     try {
       const app = window.MediAlertMain;
-      const [profile, patients, appointments] = await Promise.all([
+      const [profile, patients, appointments, requests] = await Promise.all([
         window.MediAlertAPI.getDoctorProfile(),
         window.MediAlertAPI.getPatients(),
-        window.MediAlertAPI.getDoctorAppointments(app.state.user.id)
+        window.MediAlertAPI.getDoctorAppointments(app.state.user.id),
+        window.MediAlertAPI.getDoctorAppointmentRequests(app.state.user.id)
       ]);
 
       if (profileBox) {
@@ -81,6 +83,28 @@
               </article>
             `).join('')
           : '<div class="empty-state">No hay citas programadas.</div>';
+      }
+
+      if (requestBox) {
+        requestBox.innerHTML = (requests.requests || []).length
+          ? requests.requests.map((item) => `
+              <article class="appointment-card">
+                <div>
+                  <strong>${item.patient_name}</strong>
+                  <div class="appointment-meta">${item.curp} · ${formatDate(item.requested_date)} ${String(item.requested_time).slice(0, 5)}</div>
+                  <p>${item.reason || 'Sin motivo especificado'}</p>
+                  ${item.doctor_response ? `<p><strong>Respuesta:</strong> ${item.doctor_response}</p>` : ''}
+                </div>
+                <div class="request-actions">
+                  <span class="status-badge ${item.status}">${formatRequestStatus(item.status)}</span>
+                  ${item.status === 'pending' ? `
+                    <button class="btn btn-primary btn-small" data-request-action="approve" data-request-id="${item.id}" data-request-date="${item.requested_date}" data-request-time="${String(item.requested_time).slice(0, 5)}">Aprobar</button>
+                    <button class="btn btn-secondary btn-small" data-request-action="reject" data-request-id="${item.id}">Rechazar</button>
+                  ` : ''}
+                </div>
+              </article>
+            `).join('')
+          : '<div class="empty-state">No hay solicitudes de cita.</div>';
       }
     } catch (error) {
       window.MediAlertMain.showToast(error.message, 'error');
@@ -128,14 +152,92 @@
     });
   }
 
+  function bindRequestActions() {
+    const requestContainer = document.getElementById('doctor-request-list');
+    if (!requestContainer || requestContainer.dataset.bound === 'true') {
+      return;
+    }
+
+    requestContainer.dataset.bound = 'true';
+    requestContainer.addEventListener('click', async (event) => {
+      const actionButton = event.target.closest('[data-request-action]');
+      if (!actionButton) {
+        return;
+      }
+
+      const requestId = actionButton.dataset.requestId;
+      const action = actionButton.dataset.requestAction;
+
+      try {
+        actionButton.disabled = true;
+
+        if (action === 'approve') {
+          const scheduledDate = window.prompt('Fecha final para la cita (YYYY-MM-DD):', actionButton.dataset.requestDate || '');
+          if (!scheduledDate) {
+            return;
+          }
+
+          const scheduledTime = window.prompt('Hora final para la cita (HH:MM):', actionButton.dataset.requestTime || '');
+          if (!scheduledTime) {
+            return;
+          }
+
+          const response = window.prompt('Mensaje para el paciente (opcional):', 'Solicitud aprobada');
+          await window.MediAlertAPI.reviewAppointmentRequest(requestId, {
+            action: 'approve',
+            scheduled_date: scheduledDate,
+            scheduled_time: scheduledTime,
+            response: response || ''
+          });
+          window.MediAlertMain.showToast('Solicitud aprobada', 'success');
+        } else {
+          const response = window.prompt('Motivo del rechazo (opcional):', 'Horario no disponible');
+          await window.MediAlertAPI.reviewAppointmentRequest(requestId, {
+            action: 'reject',
+            response: response || ''
+          });
+          window.MediAlertMain.showToast('Solicitud rechazada', 'info');
+        }
+
+        await loadDoctorSummary();
+      } catch (error) {
+        window.MediAlertMain.showToast(error.message, 'error');
+      } finally {
+        actionButton.disabled = false;
+      }
+    });
+  }
+
+  function formatDate(value) {
+    return new Date(`${value}T00:00:00`).toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  }
+
+  function formatRequestStatus(status) {
+    const labels = {
+      pending: 'Pendiente',
+      approved: 'Aprobada',
+      rejected: 'Rechazada'
+    };
+
+    return labels[status] || status || 'Pendiente';
+  }
+
   function bootstrapDoctorPage() {
     const app = window.MediAlertMain;
     if (app?.isReady) {
+      bindRequestActions();
       initDoctorPage();
       return;
     }
 
-    document.addEventListener('medialert:ready', initDoctorPage, { once: true });
+    document.addEventListener('medialert:ready', () => {
+      bindRequestActions();
+      initDoctorPage();
+    }, { once: true });
   }
 
   document.addEventListener('DOMContentLoaded', bootstrapDoctorPage);

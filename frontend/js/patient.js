@@ -22,6 +22,7 @@
       renderSidebar(patient);
       renderDashboard(patient);
       renderRecipe(patient);
+      renderProfile(patient);
       bindAppointmentForm(patient);
     } catch (error) {
       app.showToast(error.message, 'error');
@@ -44,6 +45,7 @@
   function renderDashboard(patient) {
     const medications = patient.medications || [];
     const appointments = patient.appointments || [];
+    const requests = patient.appointment_requests || [];
     const nextMedication = medications[0];
     const nextAppointment = appointments
       .slice()
@@ -108,6 +110,23 @@
           `).join('')
         : emptyState('Sin citas pendientes');
     }
+
+    const requestList = document.getElementById('appointment-request-list');
+    if (requestList) {
+      requestList.innerHTML = requests.length
+        ? requests.map((item) => `
+            <article class="appointment-card">
+              <div>
+                <strong>${formatDate(item.requested_date)}</strong>
+                <div class="appointment-meta">${formatTime(item.requested_time)} · ${formatRequestStatus(item.status)}</div>
+                <p>${item.reason || 'Sin motivo especificado'}</p>
+                ${item.doctor_response ? `<p><strong>Respuesta:</strong> ${item.doctor_response}</p>` : ''}
+              </div>
+              <span class="status-badge ${item.status || 'pending'}">${formatRequestStatus(item.status)}</span>
+            </article>
+          `).join('')
+        : emptyState('Aun no has enviado solicitudes de cita');
+    }
   }
 
   function renderRecipe(patient) {
@@ -138,6 +157,18 @@
     });
   }
 
+  function renderProfile(patient) {
+    setText('profile-name', patient.name || 'Paciente');
+    setText('profile-curp', patient.curp || 'Sin CURP');
+
+    const createdAt = document.getElementById('profile-created-at');
+    if (createdAt) {
+      createdAt.textContent = patient.created_at
+        ? `Registro en sistema: ${formatDateTime(patient.created_at)}`
+        : 'Registro en sistema disponible';
+    }
+  }
+
   function bindAppointmentForm(patient) {
     const form = document.getElementById('appointment-form');
     if (!form || form.dataset.bound === 'true') {
@@ -150,10 +181,11 @@
       event.preventDefault();
       const date = document.getElementById('appointment-date').value;
       const time = document.getElementById('appointment-time').value;
+      const reason = document.getElementById('appointment-reason')?.value.trim() || '';
 
       try {
-        await window.MediAlertAPI.bookAppointment(patient.curp, date, time);
-        window.MediAlertMain.showToast('Cita agendada', 'success');
+        await window.MediAlertAPI.requestAppointment(patient.curp, date, time, reason);
+        window.MediAlertMain.showToast('Solicitud de cita enviada', 'success');
         window.location.reload();
       } catch (error) {
         window.MediAlertMain.showToast(error.message, 'error');
@@ -182,6 +214,27 @@
       month: 'short',
       year: 'numeric'
     });
+  }
+
+  function formatDateTime(value) {
+    return new Date(value).toLocaleString('es-MX', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  function formatRequestStatus(status) {
+    const labels = {
+      pending: 'Pendiente',
+      approved: 'Aprobada',
+      rejected: 'Rechazada',
+      scheduled: 'Programada'
+    };
+
+    return labels[status] || status || 'Pendiente';
   }
 
   function bootstrapPatientPage() {

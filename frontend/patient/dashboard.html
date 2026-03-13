@@ -72,8 +72,8 @@
             <section class="form-card">
               <div class="content-header">
                 <div>
-                  <h2>Agendar cita</h2>
-                  <p>Solicita tu siguiente consulta.</p>
+                  <h2>Solicitar cita</h2>
+                  <p>Envia una propuesta al doctor para su autorizacion.</p>
                 </div>
               </div>
               <form id="appointment-form">
@@ -85,15 +85,29 @@
                   <label for="appointment-time">Hora</label>
                   <input type="time" id="appointment-time" required>
                 </div>
-                <button class="btn btn-primary" type="submit">Guardar cita</button>
+                <div class="form-group">
+                  <label for="appointment-reason">Motivo</label>
+                  <textarea id="appointment-reason" rows="3" placeholder="Describe brevemente el motivo de la consulta"></textarea>
+                </div>
+                <button class="btn btn-primary" type="submit">Enviar solicitud</button>
               </form>
             </section>
 
             <section>
               <div class="content-header">
                 <div>
+                  <h2>Mis solicitudes</h2>
+                  <p>Seguimiento de citas pendientes, aprobadas o rechazadas.</p>
+                </div>
+              </div>
+              <div id="appointment-request-list" class="appointment-list"></div>
+            </section>
+
+            <section>
+              <div class="content-header">
+                <div>
                   <h2>Mis citas</h2>
-                  <p>Consultas registradas en el sistema.</p>
+                  <p>Citas ya autorizadas por tu doctor.</p>
                 </div>
               </div>
               <div id="appointment-list" class="appointment-list"></div>

@@ -55,6 +55,14 @@ window.MediAlertAPI = {
     });
   },
 
+  requestAppointment(curp, date, time, reason) {
+    return request(`${API_BASE}/patients/${curp}/appointment-requests`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ date, time, reason })
+    });
+  },
+
   getPatients() {
     return request(`${API_BASE}/patients`, {
       headers: authHeaders(false)
@@ -78,6 +86,20 @@ window.MediAlertAPI = {
   getDoctorAppointments(doctorId) {
     return request(`${API_BASE}/doctors/${doctorId}/appointments`, {
       headers: authHeaders(false)
+    });
+  },
+
+  getDoctorAppointmentRequests(doctorId) {
+    return request(`${API_BASE}/doctors/${doctorId}/appointment-requests`, {
+      headers: authHeaders(false)
+    });
+  },
+
+  reviewAppointmentRequest(requestId, payload) {
+    return request(`${API_BASE}/doctors/appointment-requests/${requestId}/review`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
     });
   },
 
