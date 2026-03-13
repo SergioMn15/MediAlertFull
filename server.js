@@ -274,22 +274,33 @@ async function ensureDatabaseDemoData() {
 }
 
 async function initDatabase() {
+  console.log('🚀 Iniciando conexión DB...');
   try {
     db = getPool();
     if (!db) {
+      console.log('❌ No pool DB - Fallback demo');
       throw new Error('Sin configuracion de base de datos');
     }
 
+    console.log('🔗 Test conexión: SELECT 1');
     await db.query('SELECT 1');
+    console.log('✅ Conexión OK');
+
+    console.log('📋 Creando schema...');
     await ensureDatabaseSchema();
+    console.log('✅ Schema OK');
+
+    console.log('💾 Insertando demo data...');
     await ensureDatabaseDemoData();
+    console.log('✅ Demo data OK');
 
     useDatabase = true;
     app.set('db', db);
     app.set('demoData', demoData);
     app.set('useDatabase', true);
-    console.log('Base de datos conectada');
+    console.log('🌟 Base de datos conectada COMPLETA');
   } catch (error) {
+    console.error('💥 Error DB:', error.message);
     useDatabase = false;
     initializeDemoData();
     console.log('Modo demo activo');
