@@ -667,6 +667,26 @@ textarea {
   margin-top: 1rem;
 }
 
+.recipe-history-card {
+  width: 100%;
+  border: 1px solid rgba(23, 49, 43, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 1.15rem;
+  color: var(--text);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  text-align: left;
+}
+
+.recipe-history-card.active {
+  border-color: rgba(18, 124, 104, 0.35);
+  box-shadow: 0 12px 24px rgba(18, 124, 104, 0.12);
+  background: linear-gradient(180deg, rgba(18, 124, 104, 0.06), rgba(255, 255, 255, 0.92));
+}
+
 @media (max-width: 1024px) {
   .hero-grid,
   .dashboard-grid,

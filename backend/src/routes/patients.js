@@ -89,9 +89,46 @@ async function getActivePrescriptionFromDb(patientId) {
   return prescription;
 }
 
+async function getPrescriptionHistoryFromDb(patientId) {
+  const { query } = require('../config/db');
+  const prescriptionsResult = await query(
+    `SELECT p.*, d.name AS doctor_name
+     FROM prescriptions p
+     LEFT JOIN doctors d ON d.id = p.doctor_id
+     WHERE p.patient_id = $1
+     ORDER BY p.issued_at DESC, p.id DESC`,
+    [patientId]
+  );
+
+  const prescriptions = [];
+  for (const prescription of prescriptionsResult.rows) {
+    const itemsResult = await query(
+      `SELECT *
+       FROM prescription_items
+       WHERE prescription_id = $1
+       ORDER BY time ASC, id ASC`,
+      [prescription.id]
+    );
+
+    prescriptions.push({
+      ...prescription,
+      doctor_name: prescription.doctor_name || 'Doctor tratante',
+      items: itemsResult.rows
+    });
+  }
+
+  return prescriptions;
+}
+
 function getActivePrescriptionFromDemo(demo, patientId) {
   const prescriptions = demo.prescriptions[patientId] || [];
   return prescriptions.find((item) => item.status === 'active') || prescriptions[0] || null;
+}
+
+function getPrescriptionHistoryFromDemo(demo, patientId) {
+  return (demo.prescriptions[patientId] || [])
+    .slice()
+    .sort((left, right) => new Date(right.issued_at) - new Date(left.issued_at));
 }
 
 router.get('/', verifyToken, requireDoctor, async (req, res) => {
@@ -223,6 +260,7 @@ router.get('/:curp', verifyToken, async (req, res) => {
     let appointments = [];
     let appointmentRequests = [];
     let activePrescription = null;
+    let prescriptionsHistory = [];
 
     if (isDb) {
       const { query } = require('../config/db');
@@ -237,6 +275,7 @@ router.get('/:curp', verifyToken, async (req, res) => {
 
       patient = patientResult.rows[0];
       activePrescription = await getActivePrescriptionFromDb(patient.id);
+      prescriptionsHistory = await getPrescriptionHistoryFromDb(patient.id);
       medications = activePrescription
         ? activePrescription.items.map((item) => mapPrescriptionItemToMedication(item, activePrescription, activePrescription.doctor_name))
         : [];
@@ -259,6 +298,16 @@ router.get('/:curp', verifyToken, async (req, res) => {
       }
 
       activePrescription = getActivePrescriptionFromDemo(demo, patient.id);
+      if (activePrescription) {
+        activePrescription = {
+          ...activePrescription,
+          doctor_name: activePrescription.doctor_name || 'Dra. Laura Hernandez'
+        };
+      }
+      prescriptionsHistory = getPrescriptionHistoryFromDemo(demo, patient.id).map((prescription) => ({
+        ...prescription,
+        doctor_name: prescription.doctor_name || 'Dra. Laura Hernandez'
+      }));
       medications = activePrescription
         ? activePrescription.items.map((item) => mapPrescriptionItemToMedication(item, activePrescription, 'Dra. Laura Hernandez'))
         : (demo.medications[patient.id] || []);
@@ -277,7 +326,8 @@ router.get('/:curp', verifyToken, async (req, res) => {
         medications,
         appointments,
         appointment_requests: appointmentRequests,
-        active_prescription: activePrescription
+        active_prescription: activePrescription,
+        prescriptions_history: prescriptionsHistory
       }
     });
   } catch (error) {

@@ -1,4 +1,7 @@
 (function () {
+  let currentPatient = null;
+  let selectedPrescriptionId = null;
+
   async function initPatientPage() {
     const app = window.MediAlertMain;
     if (!window.location.pathname.includes('/patient/')) {
@@ -17,12 +20,17 @@
     try {
       const response = await window.MediAlertAPI.getPatientData(app.state.user.curp);
       const patient = response.patient;
+      currentPatient = patient;
+      selectedPrescriptionId = patient.active_prescription?.id || patient.prescriptions_history?.[0]?.id || null;
 
       renderSidebar(patient);
       renderDashboard(patient);
-      renderRecipe(patient);
+      renderRecipeHistory(patient);
+      renderSelectedRecipe(patient);
       renderProfile(patient);
       bindAppointmentForm(patient);
+      bindRecipeHistory();
+      bindRecipePrint();
     } catch (error) {
       app.showToast(error.message, 'error');
     }
@@ -53,10 +61,10 @@
       nextMedicationCard.innerHTML = nextMedication
         ? `
           <div>
-            <strong>${nextMedication.emoji || '💊'} ${nextMedication.name}</strong>
+            <strong>${nextMedication.emoji || '💊'} ${escapeHtml(nextMedication.name)}</strong>
             <div class="med-meta">${nextMedication.dose_mg} mg a las ${formatTime(nextMedication.time)}</div>
-            <p>${nextMedication.notes || 'Sin observaciones.'}</p>
-            ${nextMedication.frequency ? `<p><strong>Frecuencia:</strong> ${nextMedication.frequency}</p>` : ''}
+            <p>${escapeHtml(nextMedication.notes || 'Sin observaciones.')}</p>
+            ${nextMedication.frequency ? `<p><strong>Frecuencia:</strong> ${escapeHtml(nextMedication.frequency)}</p>` : ''}
           </div>
           <span class="status-badge scheduled">Activa</span>
         `
@@ -71,7 +79,7 @@
             <strong>Proxima consulta</strong>
             <div class="appointment-meta">${formatDate(nextAppointment.date)} a las ${formatTime(nextAppointment.time)}</div>
           </div>
-          <span class="status-badge scheduled">${nextAppointment.status || 'scheduled'}</span>
+          <span class="status-badge scheduled">${escapeHtml(nextAppointment.status || 'scheduled')}</span>
         `
         : emptyState('No hay citas registradas');
     }
@@ -82,9 +90,9 @@
         ? medications.map((medication) => `
             <article class="med-card">
               <div>
-                <strong>${medication.emoji || '💊'} ${medication.name}</strong>
+                <strong>${medication.emoji || '💊'} ${escapeHtml(medication.name)}</strong>
                 <div class="med-meta">${medication.dose_mg} mg · ${formatTime(medication.time)}</div>
-                <p>${medication.notes || 'Sin notas'}</p>
+                <p>${escapeHtml(medication.notes || 'Sin notas')}</p>
               </div>
             </article>
           `).join('')
@@ -100,7 +108,7 @@
                 <strong>${formatDate(item.date)}</strong>
                 <div class="appointment-meta">${formatTime(item.time)}</div>
               </div>
-              <span class="status-badge scheduled">${item.status || 'scheduled'}</span>
+              <span class="status-badge scheduled">${escapeHtml(item.status || 'scheduled')}</span>
             </article>
           `).join('')
         : emptyState('Sin citas pendientes');
@@ -114,54 +122,128 @@
               <div>
                 <strong>${formatDate(item.requested_date)}</strong>
                 <div class="appointment-meta">${formatTime(item.requested_time)} · ${formatRequestStatus(item.status)}</div>
-                <p>${item.reason || 'Sin motivo especificado'}</p>
-                ${item.doctor_response ? `<p><strong>Respuesta:</strong> ${item.doctor_response}</p>` : ''}
+                <p>${escapeHtml(item.reason || 'Sin motivo especificado')}</p>
+                ${item.doctor_response ? `<p><strong>Respuesta:</strong> ${escapeHtml(item.doctor_response)}</p>` : ''}
               </div>
               <span class="status-badge ${item.status || 'pending'}">${formatRequestStatus(item.status)}</span>
             </article>
           `).join('')
         : emptyState('Aun no has enviado solicitudes de cita');
     }
-
-    setText('recipe-doctor', `Doctor: ${activePrescription?.doctor_name || 'Sin asignar'}`);
-    setText('recipe-date', `Ultima actualizacion: ${activePrescription?.issued_at ? formatDateTime(activePrescription.issued_at) : new Date().toLocaleDateString('es-MX')}`);
   }
 
-  function renderRecipe(patient) {
-    const list = document.getElementById('medication-list');
+  function renderRecipeHistory(patient) {
+    const historyList = document.getElementById('recipe-history-list');
+    if (!historyList) {
+      return;
+    }
+
+    const history = patient.prescriptions_history || [];
+    historyList.innerHTML = history.length
+      ? history.map((prescription) => `
+          <button class="recipe-history-card ${prescription.id === selectedPrescriptionId ? 'active' : ''}" type="button" data-prescription-id="${prescription.id}">
+            <div>
+              <strong>Receta #${prescription.id}</strong>
+              <div class="med-meta">${formatDateTime(prescription.issued_at)} · ${escapeHtml(prescription.doctor_name || 'Doctor tratante')}</div>
+              <p><strong>Diagnostico:</strong> ${escapeHtml(prescription.diagnosis || 'Sin diagnostico')}</p>
+              <p>${prescription.items?.length || 0} medicamento(s)</p>
+            </div>
+            <span class="status-badge ${prescription.status === 'active' ? 'scheduled' : 'pending'}">${prescription.status === 'active' ? 'Activa' : 'Anterior'}</span>
+          </button>
+        `).join('')
+      : emptyState('Aun no tienes historial de recetas.');
+  }
+
+  function renderSelectedRecipe(patient) {
+    const history = patient.prescriptions_history || [];
+    const selectedPrescription = history.find((prescription) => prescription.id === selectedPrescriptionId)
+      || patient.active_prescription
+      || history[0]
+      || null;
+
+    const title = document.getElementById('recipe-title');
+    const doctor = document.getElementById('recipe-doctor');
+    const date = document.getElementById('recipe-date');
     const diagnosis = document.getElementById('recipe-diagnosis');
     const instructions = document.getElementById('recipe-instructions');
+    const list = document.getElementById('medication-list');
+
+    if (title) {
+      title.textContent = selectedPrescription ? `Receta #${selectedPrescription.id}` : 'Selecciona una receta';
+    }
+
+    if (doctor) {
+      doctor.textContent = `Doctor: ${selectedPrescription?.doctor_name || 'Sin asignar'}`;
+    }
+
+    if (date) {
+      date.textContent = `Fecha de receta: ${selectedPrescription?.issued_at ? formatDateTime(selectedPrescription.issued_at) : 'Sin fecha'}`;
+    }
+
+    if (diagnosis) {
+      diagnosis.textContent = `Diagnostico: ${selectedPrescription?.diagnosis || 'Sin diagnostico capturado'}`;
+    }
+
+    if (instructions) {
+      instructions.textContent = `Indicaciones: ${selectedPrescription?.general_instructions || 'Sin indicaciones generales'}`;
+    }
+
     if (!list) {
       return;
     }
 
-    const activePrescription = patient.active_prescription;
-    const medications = patient.medications || [];
-
-    if (diagnosis) {
-      diagnosis.textContent = activePrescription?.diagnosis || 'Sin diagnostico capturado';
+    if (!selectedPrescription) {
+      list.innerHTML = emptyState('Selecciona una receta del historial para ver el desglose.');
+      return;
     }
 
-    if (instructions) {
-      instructions.textContent = activePrescription?.general_instructions || 'Sin indicaciones generales';
-    }
-
-    list.innerHTML = medications.length
-      ? medications.map((medication) => `
+    const items = selectedPrescription?.items || [];
+    list.innerHTML = items.length
+      ? items.map((medication) => `
           <article class="med-card">
             <div>
-              <strong>${medication.emoji || '💊'} ${medication.name}</strong>
-              <div class="med-meta">${medication.dose_mg} mg · ${medication.frequency || 'Frecuencia por definir'} · ${formatTime(medication.time)}</div>
-              <p>${medication.notes || 'Sin observaciones'}</p>
+              <strong>${medication.emoji || '💊'} ${escapeHtml(medication.name)}</strong>
+              <div class="med-meta">${medication.dose_mg} mg · ${escapeHtml(medication.frequency || 'Frecuencia por definir')} · ${formatTime(medication.time)}</div>
+              <p>${escapeHtml(medication.notes || 'Sin observaciones')}</p>
             </div>
             <span class="status-badge scheduled">${medication.duration_days ? `${medication.duration_days} dias` : 'Activa'}</span>
           </article>
         `).join('')
-      : emptyState('Aun no tienes medicamentos asignados');
+      : emptyState('Esta receta no tiene medicamentos capturados.');
 
-    document.getElementById('download-pdf')?.addEventListener('click', () => {
-      window.print();
+  }
+
+  function bindRecipeHistory() {
+    const historyList = document.getElementById('recipe-history-list');
+    if (!historyList || historyList.dataset.bound === 'true') {
+      return;
+    }
+
+    historyList.dataset.bound = 'true';
+    historyList.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-prescription-id]');
+      if (!button || !currentPatient) {
+        return;
+      }
+
+      selectedPrescriptionId = Number(button.dataset.prescriptionId);
+      renderRecipeHistory(currentPatient);
+      renderSelectedRecipe(currentPatient);
     });
+  }
+
+  function handlePrintRecipe() {
+    window.print();
+  }
+
+  function bindRecipePrint() {
+    const button = document.getElementById('download-pdf');
+    if (!button || button.dataset.bound === 'true') {
+      return;
+    }
+
+    button.dataset.bound = 'true';
+    button.addEventListener('click', handlePrintRecipe);
   }
 
   function renderProfile(patient) {
@@ -208,6 +290,15 @@
     if (element) {
       element.textContent = value;
     }
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function formatTime(value) {

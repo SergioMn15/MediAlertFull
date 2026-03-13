@@ -61,7 +61,7 @@ function mapPrescriptionItemToMedication(item, prescription, doctorName = 'Docto
 async function getActivePrescriptionFromDb(patientId) {
   const { query } = require('../config/db');
   const prescriptionResult = await query(
-    'SELECT p.*, d.name AS doctor_name FROM prescriptions p LEFT JOIN doctors d ON d.id = p.doctor_id WHERE p.patient_id = $1 AND p.status = "active" ORDER BY p.issued_at DESC LIMIT 1',
+    "SELECT p.*, d.name AS doctor_name FROM prescriptions p LEFT JOIN doctors d ON d.id = p.doctor_id WHERE p.patient_id = $1 AND p.status = 'active' ORDER BY p.issued_at DESC LIMIT 1",
     [patientId]
   );
 
@@ -560,4 +560,3 @@ router.post('/appointment-requests/:requestId/review', verifyToken, requireDocto
 });
 
 module.exports = router;
-

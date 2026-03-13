@@ -28,16 +28,33 @@
         </div>
 
         <section class="recipe-card">
+          <div class="content-header">
+            <div>
+              <h2>Historial de recetas</h2>
+              <p>Selecciona una receta para ver su desglose completo.</p>
+            </div>
+          </div>
+          <div id="recipe-history-list" class="medication-list"></div>
+        </section>
+
+        <section class="recipe-card">
+          <div class="content-header">
+            <div>
+              <h2>Detalle de receta</h2>
+              <p>Consulta el diagnostico, indicaciones y medicamentos de la receta seleccionada.</p>
+            </div>
+          </div>
+
           <div class="recipe-header">
             <div class="recipe-logo">
               <i class="fa-solid fa-file-prescription"></i>
             </div>
             <div>
-              <h3>Receta digital</h3>
-              <p id="recipe-doctor">Doctor: Cargando...</p>
-              <p id="recipe-date">Ultima actualizacion: Cargando...</p>
-              <p id="recipe-diagnosis">Diagnostico: Cargando...</p>
-              <p id="recipe-instructions">Indicaciones: Cargando...</p>
+              <h3 id="recipe-title">Selecciona una receta</h3>
+              <p id="recipe-doctor">Doctor: --</p>
+              <p id="recipe-date">Fecha de receta: --</p>
+              <p id="recipe-diagnosis">Diagnostico: --</p>
+              <p id="recipe-instructions">Indicaciones: --</p>
             </div>
           </div>
 
