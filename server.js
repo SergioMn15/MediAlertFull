@@ -88,6 +88,7 @@ function createEmptyDemoData() {
   return {
     doctors: {},
     patients: {},
+    prescriptions: {},
     medications: {},
     appointments: {},
     appointmentRequests: {}
@@ -116,30 +117,53 @@ function initializeDemoData() {
     created_at: new Date().toISOString()
   };
 
-  demoData.medications[1] = [
+  demoData.prescriptions[1] = [
     {
       id: 1,
       patient_id: 1,
-      name: 'Losartan',
-      dose_mg: 50,
-      time: '08:00:00',
-      notes: 'Tomar despues del desayuno',
-      emoji: '💊',
-      prescribed_by: 'Dra. Laura Hernandez',
-      prescribed_at: new Date().toISOString()
-    },
-    {
-      id: 2,
-      patient_id: 1,
-      name: 'Metformina',
-      dose_mg: 850,
-      time: '14:00:00',
-      notes: 'Tomar con alimentos',
-      emoji: '🩺',
-      prescribed_by: 'Dra. Laura Hernandez',
-      prescribed_at: new Date().toISOString()
+      doctor_id: 1,
+      diagnosis: 'Control de hipertension arterial y glucosa',
+      general_instructions: 'Mantener hidratacion, dieta balanceada y seguimiento semanal.',
+      status: 'active',
+      issued_at: new Date().toISOString(),
+      items: [
+        {
+          id: 1,
+          prescription_id: 1,
+          name: 'Losartan',
+          dose_mg: 50,
+          frequency: 'Cada 24 horas',
+          time: '08:00:00',
+          duration_days: 30,
+          notes: 'Tomar despues del desayuno',
+          emoji: '💊'
+        },
+        {
+          id: 2,
+          prescription_id: 1,
+          name: 'Metformina',
+          dose_mg: 850,
+          frequency: 'Cada 12 horas',
+          time: '14:00:00',
+          duration_days: 30,
+          notes: 'Tomar con alimentos',
+          emoji: '🩺'
+        }
+      ]
     }
   ];
+
+  demoData.medications[1] = demoData.prescriptions[1][0].items.map((item) => ({
+    id: item.id,
+    patient_id: 1,
+    name: item.name,
+    dose_mg: item.dose_mg,
+    time: item.time,
+    notes: item.notes,
+    emoji: item.emoji,
+    prescribed_by: 'Dra. Laura Hernandez',
+    prescribed_at: demoData.prescriptions[1][0].issued_at
+  }));
 
   demoData.appointments[1] = [
     {
@@ -179,6 +203,32 @@ async function ensureDatabaseSchema() {
       password VARCHAR(255) NOT NULL,
       doctor_id INTEGER REFERENCES doctors(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS prescriptions (
+      id SERIAL PRIMARY KEY,
+      patient_id INTEGER REFERENCES patients(id) ON DELETE CASCADE,
+      doctor_id INTEGER REFERENCES doctors(id) ON DELETE SET NULL,
+      diagnosis TEXT,
+      general_instructions TEXT,
+      status VARCHAR(20) DEFAULT 'active',
+      issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS prescription_items (
+      id SERIAL PRIMARY KEY,
+      prescription_id INTEGER REFERENCES prescriptions(id) ON DELETE CASCADE,
+      name VARCHAR(100) NOT NULL,
+      dose_mg INTEGER NOT NULL,
+      frequency VARCHAR(100),
+      time TIME NOT NULL,
+      duration_days INTEGER,
+      notes TEXT,
+      emoji VARCHAR(10) DEFAULT '💊'
     )
   `);
 
@@ -255,6 +305,45 @@ async function ensureDatabaseDemoData() {
     patientId = patientCheck.rows[0].id;
   }
 
+  const prescriptionCheck = await db.query('SELECT COUNT(*)::int AS total FROM prescriptions WHERE patient_id = $1', [patientId]);
+  if (prescriptionCheck.rows[0].total === 0) {
+    const prescriptionResult = await db.query(
+      `INSERT INTO prescriptions (patient_id, doctor_id, diagnosis, general_instructions, status)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [
+        patientId,
+        doctorId,
+        'Control de hipertension arterial y glucosa',
+        'Mantener hidratacion, dieta balanceada y seguimiento semanal.',
+        'active'
+      ]
+    );
+
+    await db.query(
+      `INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, time, duration_days, notes, emoji)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8),
+              ($1, $9, $10, $11, $12, $13, $14, $15)`,
+      [
+        prescriptionResult.rows[0].id,
+        'Losartan',
+        50,
+        'Cada 24 horas',
+        '08:00:00',
+        30,
+        'Tomar despues del desayuno',
+        '💊',
+        'Metformina',
+        850,
+        'Cada 12 horas',
+        '14:00:00',
+        30,
+        'Tomar con alimentos',
+        '🩺'
+      ]
+    );
+  }
+
   const medicationCheck = await db.query('SELECT COUNT(*)::int AS total FROM medications WHERE patient_id = $1', [patientId]);
   if (medicationCheck.rows[0].total === 0) {
     await db.query(
@@ -283,23 +372,23 @@ async function ensureDatabaseDemoData() {
     await db.query(
       `INSERT INTO appointments (patient_id, date, time, status)
        VALUES ($1, $2, $3, $4)`,
-      [patientId, '2026-03-20', '10:00:00', 'pending']
+      [patientId, '2026-03-20', '10:00:00', 'scheduled']
     );
   }
 }
 
 async function initDatabase() {
-  console.log('🚀 Iniciando conexión DB...');
+  console.log('🚀 Iniciando conexion DB...');
   try {
     db = getPool();
     if (!db) {
-      console.log('❌ No pool DB - Fallback demo');
+      console.log('No pool DB - Fallback demo');
       throw new Error('Sin configuracion de base de datos');
     }
 
-    console.log('🔗 Test conexión: SELECT 1');
+    console.log('🔗 Test conexion: SELECT 1');
     await db.query('SELECT 1');
-    console.log('✅ Conexión OK');
+    console.log('✅ Conexion OK');
 
     console.log('📋 Creando schema...');
     await ensureDatabaseSchema();

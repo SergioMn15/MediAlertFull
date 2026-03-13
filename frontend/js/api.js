@@ -103,6 +103,14 @@ window.MediAlertAPI = {
     });
   },
 
+  createPrescription(payload) {
+    return request(`${API_BASE}/doctors/prescriptions`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+  },
+
   assignMedication(curp, medicationData) {
     return request(`${API_BASE}/patients/${curp}/medications`, {
       method: 'POST',

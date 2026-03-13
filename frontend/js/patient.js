@@ -15,8 +15,7 @@
     }
 
     try {
-      const curp = app.state.user.curp;
-      const response = await window.MediAlertAPI.getPatientData(curp);
+      const response = await window.MediAlertAPI.getPatientData(app.state.user.curp);
       const patient = response.patient;
 
       renderSidebar(patient);
@@ -30,53 +29,49 @@
   }
 
   function renderSidebar(patient) {
-    const name = document.getElementById('patient-name');
-    const curp = document.getElementById('patient-curp');
-
-    if (name) {
-      name.textContent = patient.name;
-    }
-
-    if (curp) {
-      curp.textContent = patient.curp;
-    }
+    setText('patient-name', patient.name);
+    setText('patient-curp', patient.curp);
   }
 
   function renderDashboard(patient) {
     const medications = patient.medications || [];
     const appointments = patient.appointments || [];
     const requests = patient.appointment_requests || [];
+    const activePrescription = patient.active_prescription;
     const nextMedication = medications[0];
     const nextAppointment = appointments
       .slice()
-      .sort((a, b) => new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`))[0];
+      .sort((left, right) => new Date(`${left.date}T${left.time}`) - new Date(`${right.date}T${right.time}`))[0];
 
     setText('patient-welcome', patient.name);
     setText('stat-medications', String(medications.length));
     setText('stat-appointments', String(appointments.length));
     setText('stat-next-dose', nextMedication ? formatTime(nextMedication.time) : 'Sin horario');
 
-    if (document.getElementById('next-medication-card')) {
-      document.getElementById('next-medication-card').innerHTML = nextMedication
+    const nextMedicationCard = document.getElementById('next-medication-card');
+    if (nextMedicationCard) {
+      nextMedicationCard.innerHTML = nextMedication
         ? `
           <div>
             <strong>${nextMedication.emoji || '💊'} ${nextMedication.name}</strong>
             <div class="med-meta">${nextMedication.dose_mg} mg a las ${formatTime(nextMedication.time)}</div>
             <p>${nextMedication.notes || 'Sin observaciones.'}</p>
+            ${nextMedication.frequency ? `<p><strong>Frecuencia:</strong> ${nextMedication.frequency}</p>` : ''}
           </div>
-          <span class="status-badge">Activa</span>
+          <span class="status-badge scheduled">Activa</span>
         `
         : emptyState('No hay medicamentos asignados');
     }
 
-    if (document.getElementById('next-appointment-card')) {
-      document.getElementById('next-appointment-card').innerHTML = nextAppointment
+    const nextAppointmentCard = document.getElementById('next-appointment-card');
+    if (nextAppointmentCard) {
+      nextAppointmentCard.innerHTML = nextAppointment
         ? `
           <div>
             <strong>Proxima consulta</strong>
             <div class="appointment-meta">${formatDate(nextAppointment.date)} a las ${formatTime(nextAppointment.time)}</div>
           </div>
-          <span class="status-badge pending">${nextAppointment.status || 'pending'}</span>
+          <span class="status-badge scheduled">${nextAppointment.status || 'scheduled'}</span>
         `
         : emptyState('No hay citas registradas');
     }
@@ -84,12 +79,12 @@
     const recentList = document.getElementById('recent-medications');
     if (recentList) {
       recentList.innerHTML = medications.length
-        ? medications.map((med) => `
+        ? medications.map((medication) => `
             <article class="med-card">
               <div>
-                <strong>${med.emoji || '💊'} ${med.name}</strong>
-                <div class="med-meta">${med.dose_mg} mg · ${formatTime(med.time)}</div>
-                <p>${med.notes || 'Sin notas'}</p>
+                <strong>${medication.emoji || '💊'} ${medication.name}</strong>
+                <div class="med-meta">${medication.dose_mg} mg · ${formatTime(medication.time)}</div>
+                <p>${medication.notes || 'Sin notas'}</p>
               </div>
             </article>
           `).join('')
@@ -105,7 +100,7 @@
                 <strong>${formatDate(item.date)}</strong>
                 <div class="appointment-meta">${formatTime(item.time)}</div>
               </div>
-              <span class="status-badge pending">${item.status || 'pending'}</span>
+              <span class="status-badge scheduled">${item.status || 'scheduled'}</span>
             </article>
           `).join('')
         : emptyState('Sin citas pendientes');
@@ -127,27 +122,39 @@
           `).join('')
         : emptyState('Aun no has enviado solicitudes de cita');
     }
+
+    setText('recipe-doctor', `Doctor: ${activePrescription?.doctor_name || 'Sin asignar'}`);
+    setText('recipe-date', `Ultima actualizacion: ${activePrescription?.issued_at ? formatDateTime(activePrescription.issued_at) : new Date().toLocaleDateString('es-MX')}`);
   }
 
   function renderRecipe(patient) {
     const list = document.getElementById('medication-list');
+    const diagnosis = document.getElementById('recipe-diagnosis');
+    const instructions = document.getElementById('recipe-instructions');
     if (!list) {
       return;
     }
 
+    const activePrescription = patient.active_prescription;
     const medications = patient.medications || [];
-    setText('recipe-doctor', `Doctor: ${medications[0]?.prescribed_by || 'Sin asignar'}`);
-    setText('recipe-date', `Ultima actualizacion: ${new Date().toLocaleDateString('es-MX')}`);
+
+    if (diagnosis) {
+      diagnosis.textContent = activePrescription?.diagnosis || 'Sin diagnostico capturado';
+    }
+
+    if (instructions) {
+      instructions.textContent = activePrescription?.general_instructions || 'Sin indicaciones generales';
+    }
 
     list.innerHTML = medications.length
-      ? medications.map((med) => `
+      ? medications.map((medication) => `
           <article class="med-card">
             <div>
-              <strong>${med.emoji || '💊'} ${med.name}</strong>
-              <div class="med-meta">${med.dose_mg} mg · ${formatTime(med.time)}</div>
-              <p>${med.notes || 'Sin observaciones'}</p>
+              <strong>${medication.emoji || '💊'} ${medication.name}</strong>
+              <div class="med-meta">${medication.dose_mg} mg · ${medication.frequency || 'Frecuencia por definir'} · ${formatTime(medication.time)}</div>
+              <p>${medication.notes || 'Sin observaciones'}</p>
             </div>
-            <span class="status-badge">Activa</span>
+            <span class="status-badge scheduled">${medication.duration_days ? `${medication.duration_days} dias` : 'Activa'}</span>
           </article>
         `).join('')
       : emptyState('Aun no tienes medicamentos asignados');
@@ -176,7 +183,6 @@
     }
 
     form.dataset.bound = 'true';
-
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       const date = document.getElementById('appointment-date').value;
@@ -233,7 +239,6 @@
       rejected: 'Rechazada',
       scheduled: 'Programada'
     };
-
     return labels[status] || status || 'Pendiente';
   }
 

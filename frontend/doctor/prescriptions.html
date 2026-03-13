@@ -37,6 +37,20 @@
                     <option value="">Selecciona un paciente</option>
                   </select>
                 </div>
+                <div class="form-group">
+                  <label for="prescription-diagnosis-input">Diagnostico</label>
+                  <textarea id="prescription-diagnosis-input" rows="2" placeholder="Ej. Control de hipertension arterial"></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="prescription-general-notes-input">Indicaciones generales</label>
+                  <textarea id="prescription-general-notes-input" rows="3" placeholder="Ej. Mantener hidratacion y seguimiento semanal"></textarea>
+                </div>
+                <div class="content-header">
+                  <div>
+                    <h2>Medicamentos de la receta</h2>
+                    <p>Agrega todos los medicamentos antes de guardar la receta.</p>
+                  </div>
+                </div>
                 <div class="form-row">
                   <div class="form-group">
                     <label for="medication-name-input">Medicamento</label>
@@ -45,6 +59,16 @@
                   <div class="form-group">
                     <label for="medication-dose-input">Dosis (mg)</label>
                     <input type="number" id="medication-dose-input" min="1" placeholder="50" required>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="medication-frequency-input">Frecuencia</label>
+                    <input type="text" id="medication-frequency-input" placeholder="Ej. Cada 12 horas">
+                  </div>
+                  <div class="form-group">
+                    <label for="medication-duration-input">Duracion (dias)</label>
+                    <input type="number" id="medication-duration-input" min="1" placeholder="30">
                   </div>
                 </div>
                 <div class="form-row">
@@ -61,10 +85,23 @@
                   <label for="medication-notes-input">Indicaciones</label>
                   <textarea id="medication-notes-input" rows="3" placeholder="Ej. Tomar despues del desayuno"></textarea>
                 </div>
-                <button type="submit" class="btn btn-primary">Guardar receta</button>
+                <div class="pill-row">
+                  <button type="button" id="add-medication-item" class="btn btn-outline">Agregar medicamento</button>
+                  <button type="submit" class="btn btn-primary">Guardar receta completa</button>
+                </div>
                 <p id="prescription-result" class="form-message"></p>
               </form>
             </article>
+
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Borrador de receta</h2>
+                  <p>Medicamentos que se guardaran juntos en la receta activa.</p>
+                </div>
+              </div>
+              <div id="prescription-draft-list" class="medication-list"></div>
+            </section>
           </div>
 
           <div class="stack">
