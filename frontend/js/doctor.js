@@ -1,4 +1,6 @@
 (function () {
+  let cachedPatients = [];
+
   async function initDoctorPage() {
     const app = window.MediAlertMain;
     if (!window.location.pathname.includes('/doctor/')) {
@@ -16,6 +18,8 @@
 
     hydrateSidebar();
     bindRegisterForm();
+    bindPrescriptionForm();
+    bindPatientSelector();
     await loadDoctorSummary();
   }
 
@@ -38,6 +42,7 @@
     const patientsBox = document.getElementById('doctor-patient-list');
     const appointmentsBox = document.getElementById('doctor-appointments');
     const requestBox = document.getElementById('doctor-request-list');
+    const patientSelect = document.getElementById('prescription-patient-select');
 
     try {
       const app = window.MediAlertMain;
@@ -47,6 +52,11 @@
         window.MediAlertAPI.getDoctorAppointments(app.state.user.id),
         window.MediAlertAPI.getDoctorAppointmentRequests(app.state.user.id)
       ]);
+      cachedPatients = patients.patients || [];
+
+      if (patientSelect) {
+        populatePatientSelect(patientSelect, cachedPatients);
+      }
 
       if (profileBox) {
         profileBox.innerHTML = `
@@ -152,6 +162,142 @@
     });
   }
 
+  function bindPatientSelector() {
+    const patientSelect = document.getElementById('prescription-patient-select');
+    if (!patientSelect || patientSelect.dataset.bound === 'true') {
+      return;
+    }
+
+    patientSelect.dataset.bound = 'true';
+    patientSelect.addEventListener('change', async () => {
+      await loadSelectedPatientPrescription(patientSelect.value);
+    });
+  }
+
+  function bindPrescriptionForm() {
+    const form = document.getElementById('prescription-form');
+    if (!form || form.dataset.bound === 'true') {
+      return;
+    }
+
+    form.dataset.bound = 'true';
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const patientCurp = document.getElementById('prescription-patient-select').value;
+      const name = document.getElementById('medication-name-input').value.trim();
+      const dose = Number(document.getElementById('medication-dose-input').value);
+      const time = document.getElementById('medication-time-input').value;
+      const emoji = document.getElementById('medication-emoji-input').value.trim();
+      const notes = document.getElementById('medication-notes-input').value.trim();
+      const result = document.getElementById('prescription-result');
+      const submitButton = form.querySelector('button[type="submit"]');
+
+      result.textContent = '';
+      result.className = 'form-message';
+
+      if (!patientCurp) {
+        result.textContent = 'Selecciona un paciente.';
+        result.className = 'form-message error';
+        return;
+      }
+
+      try {
+        if (submitButton) {
+          submitButton.disabled = true;
+        }
+
+        await window.MediAlertAPI.assignMedication(patientCurp, {
+          name,
+          dose_mg: dose,
+          time,
+          notes,
+          emoji
+        });
+
+        result.textContent = 'Receta guardada correctamente.';
+        result.className = 'form-message success';
+        window.MediAlertMain.showToast('Receta guardada correctamente.', 'success');
+
+        form.reset();
+        document.getElementById('prescription-patient-select').value = patientCurp;
+        await loadDoctorSummary();
+        await loadSelectedPatientPrescription(patientCurp);
+      } catch (error) {
+        result.textContent = error.message;
+        result.className = 'form-message error';
+        window.MediAlertMain.showToast(error.message, 'error');
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+        }
+      }
+    });
+  }
+
+  async function loadSelectedPatientPrescription(curp) {
+    const patientCard = document.getElementById('selected-patient-card');
+    const medicationList = document.getElementById('doctor-medication-list');
+    const patientMeta = document.getElementById('prescription-patient-meta');
+
+    if (!patientCard || !medicationList || !patientMeta) {
+      return;
+    }
+
+    if (!curp) {
+      patientMeta.textContent = 'Selecciona un paciente para ver su receta actual.';
+      patientCard.innerHTML = '<div class="empty-state">Aun no hay paciente seleccionado.</div>';
+      medicationList.innerHTML = '<div class="empty-state">Selecciona un paciente para ver medicamentos.</div>';
+      return;
+    }
+
+    try {
+      const response = await window.MediAlertAPI.getPatientData(curp);
+      const patient = response.patient;
+      const medications = patient.medications || [];
+
+      patientMeta.textContent = `${patient.name} · ${patient.curp}`;
+      patientCard.innerHTML = `
+        <div>
+          <strong>${patient.name}</strong>
+          <div class="med-meta">${patient.curp}</div>
+          <p>Medicamentos activos: ${medications.length}</p>
+        </div>
+      `;
+
+      medicationList.innerHTML = medications.length
+        ? medications.map((medication) => `
+            <article class="med-card">
+              <div>
+                <strong>${medication.emoji || '💊'} ${medication.name}</strong>
+                <div class="med-meta">${medication.dose_mg} mg · ${formatTime(medication.time)}</div>
+                <p>${medication.notes || 'Sin indicaciones'}</p>
+              </div>
+              <span class="status-badge scheduled">${medication.prescribed_by || 'Recetado'}</span>
+            </article>
+          `).join('')
+        : '<div class="empty-state">Este paciente aun no tiene medicamentos asignados.</div>';
+    } catch (error) {
+      patientMeta.textContent = 'No fue posible cargar la receta actual.';
+      patientCard.innerHTML = `<div class="empty-state">${error.message}</div>`;
+      medicationList.innerHTML = '<div class="empty-state">No se pudo cargar la receta.</div>';
+    }
+  }
+
+  function populatePatientSelect(select, patients) {
+    const selectedValue = select.value;
+    select.innerHTML = '<option value="">Selecciona un paciente</option>';
+    patients.forEach((patient) => {
+      const option = document.createElement('option');
+      option.value = patient.curp;
+      option.textContent = `${patient.name} · ${patient.curp}`;
+      select.appendChild(option);
+    });
+
+    if (selectedValue && patients.some((patient) => patient.curp === selectedValue)) {
+      select.value = selectedValue;
+    }
+  }
+
   function bindRequestActions() {
     const requestContainer = document.getElementById('doctor-request-list');
     if (!requestContainer || requestContainer.dataset.bound === 'true') {
@@ -214,6 +360,10 @@
       month: 'short',
       year: 'numeric'
     });
+  }
+
+  function formatTime(value) {
+    return String(value || '').slice(0, 5);
   }
 
   function formatRequestStatus(status) {

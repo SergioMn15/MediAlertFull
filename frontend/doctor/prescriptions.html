@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Receta Medica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="doctor-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Receta medica</h2>
+            <p>Selecciona un paciente y agrega sus medicamentos prescritos.</p>
+          </div>
+        </div>
+
+        <section class="dashboard-grid">
+          <div class="stack">
+            <article class="form-card">
+              <form id="prescription-form">
+                <div class="form-group">
+                  <label for="prescription-patient-select">Paciente</label>
+                  <select id="prescription-patient-select" required>
+                    <option value="">Selecciona un paciente</option>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="medication-name-input">Medicamento</label>
+                    <input type="text" id="medication-name-input" placeholder="Ej. Losartan" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="medication-dose-input">Dosis (mg)</label>
+                    <input type="number" id="medication-dose-input" min="1" placeholder="50" required>
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="medication-time-input">Horario</label>
+                    <input type="time" id="medication-time-input" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="medication-emoji-input">Icono</label>
+                    <input type="text" id="medication-emoji-input" maxlength="4" placeholder="💊">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="medication-notes-input">Indicaciones</label>
+                  <textarea id="medication-notes-input" rows="3" placeholder="Ej. Tomar despues del desayuno"></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Guardar receta</button>
+                <p id="prescription-result" class="form-message"></p>
+              </form>
+            </article>
+          </div>
+
+          <div class="stack">
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Paciente seleccionado</h2>
+                  <p id="prescription-patient-meta">Selecciona un paciente para ver su receta actual.</p>
+                </div>
+              </div>
+              <div id="selected-patient-card" class="info-card">
+                <div class="empty-state">Aun no hay paciente seleccionado.</div>
+              </div>
+            </section>
+
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Receta actual</h2>
+                  <p>Medicamentos activos del paciente.</p>
+                </div>
+              </div>
+              <div id="doctor-medication-list" class="medication-list"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/doctor.js"></script>
+</body>
+</html>
