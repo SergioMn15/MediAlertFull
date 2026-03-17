@@ -1,31 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const { verifyToken, requireDoctor } = require('../middleware/auth');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'medialert_secret_key_2024';
-
-function verifyToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: 'No se proporciono token' });
-  }
-
-  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Token invalido' });
-  }
-}
-
-function requireDoctor(req, res, next) {
-  if (req.user.role !== 'doctor') {
-    return res.status(403).json({ error: 'Acceso restringido a doctores' });
-  }
-  next();
-}
 
 function getDemoData(req) {
   return req.app.get('demoData') || {
@@ -40,6 +17,35 @@ function getDemoData(req) {
 
 function useDatabase(req) {
   return req.app.get('useDatabase') || false;
+}
+
+function normalizeCurp(curp) {
+  return String(curp || '').toUpperCase().trim();
+}
+
+function canAccessPatientRecord(req, patient) {
+  if (!patient) {
+    return false;
+  }
+
+  if (req.user.role === 'patient') {
+    return normalizeCurp(req.user.curp) === normalizeCurp(patient.curp);
+  }
+
+  if (req.user.role === 'doctor') {
+    return patient.doctor_id === req.user.id;
+  }
+
+  return false;
+}
+
+function ensurePatientAccess(req, res, patient) {
+  if (!canAccessPatientRecord(req, patient)) {
+    res.status(403).json({ error: 'No tienes acceso a este paciente' });
+    return false;
+  }
+
+  return true;
 }
 
 function mapPrescriptionItemToMedication(item, prescription, doctorName = 'Doctor tratante') {
@@ -141,7 +147,7 @@ router.get('/', verifyToken, requireDoctor, async (req, res) => {
       const result = await query(
         `SELECT p.id, p.curp, p.name, p.created_at
          FROM patients p
-         WHERE p.doctor_id = $1 OR p.doctor_id IS NULL
+         WHERE p.doctor_id = $1
          ORDER BY p.created_at DESC`,
         [req.user.id]
       );
@@ -160,7 +166,9 @@ router.get('/', verifyToken, requireDoctor, async (req, res) => {
       return res.json({ success: true, patients });
     }
 
-    const patients = Object.values(demo.patients).map((patient) => {
+    const patients = Object.values(demo.patients)
+      .filter((patient) => patient.doctor_id === req.user.id)
+      .map((patient) => {
       const activePrescription = getActivePrescriptionFromDemo(demo, patient.id);
       const medications = activePrescription
         ? activePrescription.items.map((item) => mapPrescriptionItemToMedication(item, activePrescription, 'Dra. Laura Hernandez'))
@@ -175,7 +183,7 @@ router.get('/', verifyToken, requireDoctor, async (req, res) => {
         appointment_count: (demo.appointments[patient.id] || []).length,
         next_medication: medications[0] || null
       };
-    });
+      });
 
     return res.json({ success: true, patients });
   } catch (error) {
@@ -274,6 +282,9 @@ router.get('/:curp', verifyToken, async (req, res) => {
       }
 
       patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
       activePrescription = await getActivePrescriptionFromDb(patient.id);
       prescriptionsHistory = await getPrescriptionHistoryFromDb(patient.id);
       medications = activePrescription
@@ -297,6 +308,10 @@ router.get('/:curp', verifyToken, async (req, res) => {
         return res.status(404).json({ error: 'Paciente no encontrado' });
       }
 
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
       activePrescription = getActivePrescriptionFromDemo(demo, patient.id);
       if (activePrescription) {
         activePrescription = {
@@ -313,10 +328,6 @@ router.get('/:curp', verifyToken, async (req, res) => {
         : (demo.medications[patient.id] || []);
       appointments = demo.appointments[patient.id] || [];
       appointmentRequests = demo.appointmentRequests[patient.id] || [];
-    }
-
-    if (req.user.role === 'patient' && req.user.curp !== curp.toUpperCase()) {
-      return res.status(403).json({ error: 'No tienes acceso a este paciente' });
     }
 
     return res.json({
@@ -350,18 +361,26 @@ router.post('/:curp/medications', verifyToken, requireDoctor, async (req, res) =
 
     if (isDb) {
       const { query } = require('../config/db');
-      const patientResult = await query('SELECT id FROM patients WHERE UPPER(curp) = UPPER($1)', [curp]);
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
       if (patientResult.rows.length === 0) {
         return res.status(404).json({ error: 'Paciente no encontrado' });
       }
 
-      let activePrescription = await getActivePrescriptionFromDb(patientResult.rows[0].id);
+      const patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      let activePrescription = await getActivePrescriptionFromDb(patient.id);
       if (!activePrescription) {
         const prescriptionResult = await query(
           `INSERT INTO prescriptions (patient_id, doctor_id, diagnosis, general_instructions, status)
            VALUES ($1, $2, $3, $4, $5)
            RETURNING *`,
-          [patientResult.rows[0].id, req.user.id, 'Seguimiento general', 'Sin indicaciones generales', 'active']
+          [patient.id, req.user.id, 'Seguimiento general', 'Sin indicaciones generales', 'active']
         );
         activePrescription = { ...prescriptionResult.rows[0], items: [], doctor_name: req.user.name };
       }
@@ -383,6 +402,10 @@ router.post('/:curp/medications', verifyToken, requireDoctor, async (req, res) =
     const patient = Object.values(demo.patients).find((item) => item.curp.toUpperCase() === curp.toUpperCase());
     if (!patient) {
       return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+
+    if (!ensurePatientAccess(req, res, patient)) {
+      return;
     }
 
     if (!demo.prescriptions[patient.id]) {
@@ -436,20 +459,24 @@ router.get('/:curp/appointment-requests', verifyToken, async (req, res) => {
     const demo = getDemoData(req);
     const isDb = useDatabase(req);
 
-    if (req.user.role === 'patient' && req.user.curp !== curp.toUpperCase()) {
-      return res.status(403).json({ error: 'No tienes acceso a este paciente' });
-    }
-
     if (isDb) {
       const { query } = require('../config/db');
-      const patientResult = await query('SELECT id FROM patients WHERE UPPER(curp) = UPPER($1)', [curp]);
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
       if (patientResult.rows.length === 0) {
         return res.status(404).json({ error: 'Paciente no encontrado' });
       }
 
+      const patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
       const result = await query(
         'SELECT * FROM appointment_requests WHERE patient_id = $1 ORDER BY created_at DESC',
-        [patientResult.rows[0].id]
+        [patient.id]
       );
 
       return res.json({ success: true, requests: result.rows });
@@ -458,6 +485,10 @@ router.get('/:curp/appointment-requests', verifyToken, async (req, res) => {
     const patient = Object.values(demo.patients).find((item) => item.curp.toUpperCase() === curp.toUpperCase());
     if (!patient) {
       return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+
+    if (!ensurePatientAccess(req, res, patient)) {
+      return;
     }
 
     return res.json({
@@ -478,14 +509,22 @@ router.get('/:curp/appointments', verifyToken, async (req, res) => {
 
     if (isDb) {
       const { query } = require('../config/db');
-      const patientResult = await query('SELECT id FROM patients WHERE UPPER(curp) = UPPER($1)', [curp]);
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
       if (patientResult.rows.length === 0) {
         return res.status(404).json({ error: 'Paciente no encontrado' });
       }
 
+      const patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
       const result = await query(
         'SELECT * FROM appointments WHERE patient_id = $1 ORDER BY date DESC, time DESC',
-        [patientResult.rows[0].id]
+        [patient.id]
       );
 
       return res.json({ success: true, appointments: result.rows });
@@ -494,6 +533,10 @@ router.get('/:curp/appointments', verifyToken, async (req, res) => {
     const patient = Object.values(demo.patients).find((item) => item.curp.toUpperCase() === curp.toUpperCase());
     if (!patient) {
       return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+
+    if (!ensurePatientAccess(req, res, patient)) {
+      return;
     }
 
     return res.json({
@@ -520,16 +563,24 @@ router.post('/:curp/appointments', verifyToken, requireDoctor, async (req, res) 
 
     if (isDb) {
       const { query } = require('../config/db');
-      const patientResult = await query('SELECT id FROM patients WHERE UPPER(curp) = UPPER($1)', [curp]);
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
       if (patientResult.rows.length === 0) {
         return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      const patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
       }
 
       const result = await query(
         `INSERT INTO appointments (patient_id, date, time, status)
          VALUES ($1, $2, $3, $4)
          RETURNING *`,
-        [patientResult.rows[0].id, date, time, 'scheduled']
+        [patient.id, date, time, 'scheduled']
       );
 
       return res.status(201).json({
@@ -542,6 +593,10 @@ router.post('/:curp/appointments', verifyToken, requireDoctor, async (req, res) 
     const patient = Object.values(demo.patients).find((item) => item.curp.toUpperCase() === curp.toUpperCase());
     if (!patient) {
       return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+
+    if (!ensurePatientAccess(req, res, patient)) {
+      return;
     }
 
     const newAppointment = {
@@ -578,7 +633,7 @@ router.post('/:curp/appointment-requests', verifyToken, async (req, res) => {
       return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
 
-    if (req.user.role !== 'patient' || req.user.curp !== curp.toUpperCase()) {
+    if (req.user.role !== 'patient' || normalizeCurp(req.user.curp) !== normalizeCurp(curp)) {
       return res.status(403).json({ error: 'Solo el paciente puede solicitar su propia cita' });
     }
 

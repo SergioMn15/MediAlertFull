@@ -1,1 +1,0 @@
-# Fix Loop Infinito Login Doctor\n\n✅ **1. Crear TODO.md** (completado)\n✅ **2. Editar backend/src/routes/doctors.js** - Corregir requireDoctor (completado)\n\n⏳ **3. Reiniciar servidor** (`Ctrl+C` + `node server.js`)\n\n⏳ **4. Probar login doctor1/medialert123** → panel doctor sin loop\n\n⏳ **5. Verificar login paciente sigue OK**

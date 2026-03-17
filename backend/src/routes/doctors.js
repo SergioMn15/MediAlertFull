@@ -1,30 +1,7 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
+const { verifyToken, requireDoctor, requireSameDoctor } = require('../middleware/auth');
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'medialert_secret_key_2024';
-
-function verifyToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: 'No se proporciono token' });
-  }
-
-  const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
-  try {
-    req.user = jwt.verify(token, JWT_SECRET);
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Token invalido' });
-  }
-}
-
-function requireDoctor(req, res, next) {
-  if (req.user.role !== 'doctor') {
-    return res.status(403).json({ error: 'Acceso restringido a doctores' });
-  }
-  next();
-}
 
 function getDemoData(req) {
   return req.app.get('demoData') || {
@@ -133,9 +110,9 @@ router.get('/profile', verifyToken, requireDoctor, async (req, res) => {
   }
 });
 
-router.get('/:id/patients', verifyToken, requireDoctor, async (req, res) => {
+router.get('/:id/patients', verifyToken, requireDoctor, requireSameDoctor, async (req, res) => {
   try {
-    const { id } = req.params;
+    const doctorId = req.user.id;
     const demo = getDemoData(req);
     const isDb = useDatabase(req);
 
@@ -143,7 +120,7 @@ router.get('/:id/patients', verifyToken, requireDoctor, async (req, res) => {
       const { query } = require('../config/db');
       const result = await query(
         'SELECT id, curp, name, created_at FROM patients WHERE doctor_id = $1 ORDER BY created_at DESC',
-        [id]
+        [doctorId]
       );
 
       const patients = await Promise.all(result.rows.map(async (patient) => {
@@ -161,10 +138,10 @@ router.get('/:id/patients', verifyToken, requireDoctor, async (req, res) => {
       return res.json({ success: true, patients });
     }
 
-    const doctor = Object.values(demo.doctors).find((item) => item.id === parseInt(id, 10));
+    const doctor = Object.values(demo.doctors).find((item) => item.id === doctorId);
     const doctorName = doctor?.name || 'Doctor tratante';
     const patients = Object.values(demo.patients)
-      .filter((item) => item.doctor_id === parseInt(id, 10))
+      .filter((item) => item.doctor_id === doctorId)
       .map((patient) => {
         const activePrescription = getActivePrescriptionFromDemo(demo, patient.id, doctorName);
         const medications = activePrescription
@@ -318,27 +295,32 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
   }
 });
 
-router.get('/:id/reports/prescriptions', verifyToken, requireDoctor, async (req, res) => {
+router.get('/:id/reports/prescriptions', verifyToken, requireDoctor, requireSameDoctor, async (req, res) => {
   try {
-    const { id } = req.params;
+    const doctorId = req.user.id;
     const isDb = useDatabase(req);
 
     if (isDb) {
       const { query } = require('../config/db');
       const result = await query(
         'SELECT p.id, p.diagnosis, p.general_instructions, p.status, p.issued_at, d.name as doctor_name, COUNT(pi.id) as items_count, STRING_AGG(pi.name, \', \') as medications_list FROM prescriptions p LEFT JOIN doctors d ON d.id = p.doctor_id LEFT JOIN prescription_items pi ON pi.prescription_id = p.id WHERE p.doctor_id = $1 GROUP BY p.id, d.name ORDER BY p.issued_at DESC',
-        [id]
+        [doctorId]
       );
 
       return res.json({ success: true, reports: result.rows });
     }
 
     const demo = getDemoData(req);
-    const doctor = Object.values(demo.doctors).find(d => d.id === parseInt(id, 10));
+    const doctor = Object.values(demo.doctors).find((item) => item.id === doctorId);
     if (!doctor) return res.status(404).json({ error: 'Doctor no encontrado' });
 
     const reports = [];
     Object.entries(demo.prescriptions).forEach(([patientId, prescriptions]) => {
+      const patient = Object.values(demo.patients).find((item) => item.id === Number(patientId));
+      if (!patient || patient.doctor_id !== doctorId) {
+        return;
+      }
+
       prescriptions.forEach(prescription => {
         reports.push({
           id: prescription.id,
@@ -360,9 +342,9 @@ router.get('/:id/reports/prescriptions', verifyToken, requireDoctor, async (req,
   }
 });
 
-router.get('/:id/appointments', verifyToken, requireDoctor, async (req, res) => {
+router.get('/:id/appointments', verifyToken, requireDoctor, requireSameDoctor, async (req, res) => {
   try {
-    const { id } = req.params;
+    const doctorId = req.user.id;
     const demo = getDemoData(req);
     const isDb = useDatabase(req);
 
@@ -370,14 +352,14 @@ router.get('/:id/appointments', verifyToken, requireDoctor, async (req, res) => 
       const { query } = require('../config/db');
       const result = await query(
         'SELECT a.id, a.date, a.time, a.status, a.created_at, p.name AS patient_name, p.curp FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE p.doctor_id = $1 ORDER BY a.date ASC, a.time ASC',
-        [id]
+        [doctorId]
       );
       return res.json({ success: true, appointments: result.rows });
     }
 
     const appointments = [];
     Object.values(demo.patients)
-      .filter((patient) => patient.doctor_id === parseInt(id, 10))
+      .filter((patient) => patient.doctor_id === doctorId)
       .forEach((patient) => {
         (demo.appointments[patient.id] || []).forEach((appointment) => {
           appointments.push({
@@ -400,9 +382,9 @@ router.get('/:id/appointments', verifyToken, requireDoctor, async (req, res) => 
   }
 });
 
-router.get('/:id/appointment-requests', verifyToken, requireDoctor, async (req, res) => {
+router.get('/:id/appointment-requests', verifyToken, requireDoctor, requireSameDoctor, async (req, res) => {
   try {
-    const { id } = req.params;
+    const doctorId = req.user.id;
     const demo = getDemoData(req);
     const isDb = useDatabase(req);
 
@@ -410,7 +392,7 @@ router.get('/:id/appointment-requests', verifyToken, requireDoctor, async (req, 
       const { query } = require('../config/db');
       const result = await query(
         "SELECT ar.*, p.name AS patient_name, p.curp FROM appointment_requests ar JOIN patients p ON p.id = ar.patient_id WHERE p.doctor_id = $1 ORDER BY CASE ar.status WHEN 'pending' THEN 0 WHEN 'approved' THEN 1 WHEN 'rejected' THEN 2 ELSE 3 END, ar.created_at DESC",
-        [id]
+        [doctorId]
       );
 
       return res.json({ success: true, requests: result.rows });
@@ -418,7 +400,7 @@ router.get('/:id/appointment-requests', verifyToken, requireDoctor, async (req, 
 
     const requests = [];
     Object.values(demo.patients)
-      .filter((patient) => patient.doctor_id === parseInt(id, 10))
+      .filter((patient) => patient.doctor_id === doctorId)
       .forEach((patient) => {
         (demo.appointmentRequests[patient.id] || []).forEach((request) => {
           requests.push({

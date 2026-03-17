@@ -9,6 +9,7 @@ const generateToken = (user) => {
     { 
       id: user.id, 
       username: user.username || user.curp,
+      curp: user.curp || null,
       role: user.role,
       name: user.name
     },
@@ -54,11 +55,30 @@ const requirePatient = (req, res, next) => {
   next();
 };
 
+const requireSameDoctor = (req, res, next) => {
+  const requestedDoctorId = Number(req.params.id);
+
+  if (!Number.isInteger(requestedDoctorId)) {
+    return res.status(400).json({ error: 'Id de doctor invalido' });
+  }
+
+  if (req.user.role !== 'doctor') {
+    return res.status(403).json({ error: 'Acceso restringido a doctores' });
+  }
+
+  if (req.user.id !== requestedDoctorId) {
+    return res.status(403).json({ error: 'No puedes acceder a informacion de otro doctor' });
+  }
+
+  next();
+};
+
 module.exports = {
   JWT_SECRET,
   generateToken,
   verifyToken,
   requireDoctor,
-  requirePatient
+  requirePatient,
+  requireSameDoctor
 };
 

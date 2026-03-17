@@ -1,0 +1,162 @@
+MediAlertV3 - Roadmap por Fases
+
+Objetivo:
+Convertir MediAlert de una demo funcional a un producto mas solido, util y escalable para doctores y pacientes.
+
+
+FASE 1 - Base Segura y Estable
+
+Meta:
+Fortalecer el proyecto antes de agregar muchas funciones nuevas.
+
+Prioridades:
+- Mejorar seguridad y autorizacion por roles.
+- Validar correctamente acceso de doctor a sus propios pacientes.
+- Centralizar autenticacion y middleware JWT.
+- Limpiar duplicacion de codigo en rutas.
+- Unificar schema de base de datos y arranque del backend.
+- Agregar pruebas basicas de API.
+- Mejorar manejo de errores y logs.
+
+Resultado esperado:
+- Plataforma mas confiable.
+- Menor riesgo de fugas de informacion.
+- Mejor base para crecer sin romper funcionalidades.
+
+
+FASE 2 - Producto Clinico Util
+
+Meta:
+Agregar pantallas que aumenten valor real en el uso diario.
+
+Pantallas recomendadas:
+- Expediente del paciente.
+- Agenda o calendario del doctor.
+- Centro de recordatorios del paciente.
+
+Funciones clave:
+- Ver datos generales del paciente.
+- Ver recetas activas e historicas.
+- Ver citas, solicitudes y seguimiento.
+- Registrar alergias, padecimientos y notas medicas.
+- Mostrar proximas tomas del paciente.
+- Confirmar medicamentos tomados, omitidos o pospuestos.
+- Ver agenda semanal o mensual del doctor.
+
+Resultado esperado:
+- El sistema deja de sentirse solo como demo.
+- Doctor y paciente tienen un flujo mucho mas completo.
+
+
+FASE 3 - Comunicacion y Seguimiento
+
+Meta:
+Mejorar la interaccion entre doctor y paciente.
+
+Pantallas recomendadas:
+- Bandeja de notificaciones.
+- Historial de seguimiento del paciente.
+- Pantalla de reprogramacion de citas.
+
+Funciones clave:
+- Aviso de cita aprobada o rechazada.
+- Aviso de nueva receta o cambios en medicamentos.
+- Reagendar o cancelar citas con motivo.
+- Mostrar adherencia al tratamiento.
+- Semaforo de seguimiento por paciente.
+
+Resultado esperado:
+- Mejor comunicacion.
+- Menos friccion en el seguimiento medico.
+- Mayor valor practico para el paciente.
+
+
+FASE 4 - Operacion y Control
+
+Meta:
+Ayudar al doctor a gestionar mejor su consulta.
+
+Pantallas recomendadas:
+- Dashboard ejecutivo del doctor.
+- Configuracion profesional.
+- Reportes y exportaciones.
+
+Funciones clave:
+- Ver pacientes con pendientes importantes.
+- Ver citas del dia.
+- Ver solicitudes pendientes.
+- Detectar recetas por vencer.
+- Configurar horarios de atencion.
+- Configurar duracion de citas.
+- Exportar recetas o resúmenes en PDF.
+- Filtros y busqueda avanzada de pacientes.
+
+Resultado esperado:
+- El doctor puede operar mejor desde una sola plataforma.
+- El sistema gana valor administrativo, no solo clinico.
+
+
+FASE 5 - Version Pro
+
+Meta:
+Escalar MediAlert a un producto mas completo y profesional.
+
+Ideas para esta fase:
+- Multi-doctor o multi-clinica.
+- Rol administrador.
+- Rol recepcionista.
+- Teleconsulta o enlace de videollamada.
+- Carga de estudios y laboratorios.
+- Firma digital de recetas.
+- Integracion con correo, WhatsApp o SMS.
+- Panel de metricas clinicas y operativas.
+
+Resultado esperado:
+- Producto listo para un entorno mas real.
+- Mejor capacidad de crecimiento comercial.
+
+
+PRIORIDAD RECOMENDADA DESPUES DE SEGURIDAD
+
+Orden sugerido:
+1. Expediente del paciente.
+2. Agenda del doctor.
+3. Centro de recordatorios del paciente.
+4. Notificaciones.
+5. Reportes y exportacion PDF.
+6. Configuracion avanzada.
+
+
+VISION GENERAL
+
+MVP:
+- Login.
+- Pacientes.
+- Recetas.
+- Citas.
+- Solicitudes.
+
+V2:
+- Expediente clinico.
+- Agenda del doctor.
+- Seguimiento de tomas.
+- Notificaciones.
+
+V3:
+- Reportes.
+- Configuracion avanzada.
+- Roles extra.
+- Integraciones.
+
+
+NOTA
+
+Si se quiere avanzar de forma realista, conviene construir primero:
+- una pantalla muy fuerte para doctor
+- una pantalla muy fuerte para paciente
+- una pantalla transversal de seguimiento
+
+La combinacion ideal seria:
+- Expediente del paciente
+- Agenda del doctor
+- Recordatorios y adherencia del paciente
