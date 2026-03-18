@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS patients (
     name VARCHAR(100) NOT NULL,
     password VARCHAR(255) NOT NULL,
     doctor_id INTEGER REFERENCES doctors(id) ON DELETE SET NULL,
+    allergies TEXT DEFAULT '',
+    medical_history TEXT DEFAULT '',
+    doctor_notes TEXT DEFAULT '',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

@@ -119,6 +119,14 @@ window.MediAlertAPI = {
     });
   },
 
+  updateClinicalProfile(curp, payload) {
+    return request(`${API_BASE}/patients/${curp}/clinical-profile`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+  },
+
   healthCheck() {
     return request(`${API_BASE}/health`);
   }

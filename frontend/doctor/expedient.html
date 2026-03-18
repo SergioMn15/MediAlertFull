@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Expediente Clinico</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="doctor-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Expediente clinico</h2>
+            <p>Consulta el resumen medico del paciente, su perfil clinico y seguimiento de citas.</p>
+          </div>
+        </div>
+
+        <section class="dashboard-grid">
+          <div class="stack">
+            <article class="form-card">
+              <div class="form-group">
+                <label for="prescription-patient-select">Paciente</label>
+                <select id="prescription-patient-select" required>
+                  <option value="">Selecciona un paciente</option>
+                </select>
+              </div>
+            </article>
+
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Resumen del paciente</h2>
+                  <p id="prescription-patient-meta">Selecciona un paciente para abrir su expediente clinico.</p>
+                </div>
+              </div>
+              <div id="selected-patient-card" class="info-card">
+                <div class="empty-state">Aun no hay paciente seleccionado.</div>
+              </div>
+            </section>
+
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Indicadores del expediente</h2>
+                  <p>Resumen rapido de recetas, citas y solicitudes.</p>
+                </div>
+              </div>
+              <div id="patient-summary-stats" class="stats-grid">
+                <article class="stat-card">
+                  <span>Recetas</span>
+                  <strong>0</strong>
+                </article>
+                <article class="stat-card">
+                  <span>Citas</span>
+                  <strong>0</strong>
+                </article>
+                <article class="stat-card">
+                  <span>Solicitudes</span>
+                  <strong>0</strong>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section class="form-card">
+              <div class="content-header">
+                <div>
+                  <h2>Perfil clinico</h2>
+                  <p>Alergias, antecedentes y notas medicas del paciente.</p>
+                </div>
+              </div>
+              <form id="clinical-profile-form">
+                <div class="form-group">
+                  <label for="clinical-allergies">Alergias</label>
+                  <textarea id="clinical-allergies" rows="2" placeholder="Ej. Penicilina, ibuprofeno, latex"></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="clinical-history">Antecedentes</label>
+                  <textarea id="clinical-history" rows="3" placeholder="Ej. Hipertension, diabetes, cirugias previas"></textarea>
+                </div>
+                <div class="form-group">
+                  <label for="clinical-notes">Notas medicas</label>
+                  <textarea id="clinical-notes" rows="3" placeholder="Observaciones relevantes del seguimiento"></textarea>
+                </div>
+                <div class="pill-row">
+                  <button id="save-clinical-profile" class="btn btn-primary" type="submit">Guardar perfil clinico</button>
+                </div>
+                <p id="clinical-profile-result" class="form-message"></p>
+              </form>
+            </section>
+
+            <section class="detail-grid compact-grid">
+              <article class="detail-panel compact-panel">
+                <div class="content-header">
+                  <div>
+                    <h2>Citas</h2>
+                    <p>Proximas consultas y seguimiento.</p>
+                  </div>
+                  <button id="open-appointments-detail" class="btn btn-outline btn-small" type="button">Ver detalle</button>
+                </div>
+                <div id="doctor-patient-appointments-preview" class="compact-list"></div>
+              </article>
+
+              <article class="detail-panel compact-panel">
+                <div class="content-header">
+                  <div>
+                    <h2>Solicitudes</h2>
+                    <p>Autorizaciones recientes del paciente.</p>
+                  </div>
+                  <button id="open-requests-detail" class="btn btn-outline btn-small" type="button">Ver detalle</button>
+                </div>
+                <div id="doctor-patient-requests-preview" class="compact-list"></div>
+              </article>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="expedient-detail-modal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal-card modal-card-wide">
+      <div class="content-header">
+        <div>
+          <h2 id="expedient-detail-title">Detalle</h2>
+          <p id="expedient-detail-subtitle">Consulta la informacion completa.</p>
+        </div>
+        <button id="expedient-detail-close" class="btn btn-outline btn-small" type="button">Cerrar</button>
+      </div>
+      <div id="expedient-detail-body" class="appointment-list"></div>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/doctor-dashboard.js"></script>
+</body>
+</html>

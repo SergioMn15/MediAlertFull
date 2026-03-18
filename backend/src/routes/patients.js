@@ -215,10 +215,10 @@ router.post('/', verifyToken, requireDoctor, async (req, res) => {
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const result = await query(
-        `INSERT INTO patients (curp, name, password, doctor_id)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, curp, name, created_at`,
-        [curp.toUpperCase(), name, hashedPassword, req.user.id]
+        `INSERT INTO patients (curp, name, password, doctor_id, allergies, medical_history, doctor_notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, curp, name, allergies, medical_history, doctor_notes, created_at`,
+        [curp.toUpperCase(), name, hashedPassword, req.user.id, '', '', '']
       );
 
       return res.status(201).json({
@@ -239,6 +239,9 @@ router.post('/', verifyToken, requireDoctor, async (req, res) => {
       name,
       password: bcrypt.hashSync(password, 10),
       doctor_id: req.user.id,
+      allergies: '',
+      medical_history: '',
+      doctor_notes: '',
       created_at: new Date().toISOString()
     };
     demo.prescriptions[newId] = [];
@@ -273,7 +276,7 @@ router.get('/:curp', verifyToken, async (req, res) => {
     if (isDb) {
       const { query } = require('../config/db');
       const patientResult = await query(
-        'SELECT id, curp, name, doctor_id, created_at FROM patients WHERE UPPER(curp) = UPPER($1)',
+        'SELECT id, curp, name, doctor_id, allergies, medical_history, doctor_notes, created_at FROM patients WHERE UPPER(curp) = UPPER($1)',
         [curp]
       );
 
@@ -695,6 +698,74 @@ router.post('/:curp/appointment-requests', verifyToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error al solicitar cita:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.put('/:curp/clinical-profile', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const {
+      allergies = '',
+      medical_history = '',
+      doctor_notes = ''
+    } = req.body;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      const patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      const result = await query(
+        `UPDATE patients
+         SET allergies = $1,
+             medical_history = $2,
+             doctor_notes = $3
+         WHERE id = $4
+         RETURNING id, curp, name, doctor_id, allergies, medical_history, doctor_notes, created_at`,
+        [allergies.trim(), medical_history.trim(), doctor_notes.trim(), patient.id]
+      );
+
+      return res.json({
+        success: true,
+        message: 'Perfil clinico actualizado correctamente',
+        patient: result.rows[0]
+      });
+    }
+
+    const patient = Object.values(demo.patients).find((item) => normalizeCurp(item.curp) === normalizeCurp(curp));
+    if (!patient) {
+      return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+
+    if (!ensurePatientAccess(req, res, patient)) {
+      return;
+    }
+
+    patient.allergies = allergies.trim();
+    patient.medical_history = medical_history.trim();
+    patient.doctor_notes = doctor_notes.trim();
+
+    return res.json({
+      success: true,
+      message: 'Perfil clinico actualizado correctamente',
+      patient
+    });
+  } catch (error) {
+    console.error('Error al actualizar perfil clinico:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

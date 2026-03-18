@@ -23,7 +23,7 @@
         <div class="content-header">
           <div>
             <h2>Receta medica</h2>
-            <p>Selecciona un paciente y agrega sus medicamentos prescritos.</p>
+            <p>Selecciona un paciente para revisar su receta activa y crear una nueva prescripcion.</p>
           </div>
         </div>
 
@@ -108,8 +108,8 @@
             <section>
               <div class="content-header">
                 <div>
-                  <h2>Paciente seleccionado</h2>
-                  <p id="prescription-patient-meta">Selecciona un paciente para ver su receta actual.</p>
+                  <h2>Resumen del paciente</h2>
+                  <p id="prescription-patient-meta">Selecciona un paciente para revisar su receta actual.</p>
                 </div>
               </div>
               <div id="selected-patient-card" class="info-card">
@@ -120,15 +120,41 @@
             <section>
               <div class="content-header">
                 <div>
-                  <h2>Receta actual</h2>
-                  <p>Medicamentos activos del paciente.</p>
+                  <h2>Receta activa</h2>
+                  <p>Medicamentos activos y observaciones del paciente.</p>
                 </div>
               </div>
               <div id="doctor-medication-list" class="medication-list"></div>
             </section>
+
+            <section class="detail-grid compact-grid">
+              <article class="detail-panel compact-panel">
+                <div class="content-header">
+                  <div>
+                    <h2>Historial de recetas</h2>
+                    <p>Consulta las ultimas prescripciones del paciente.</p>
+                  </div>
+                  <button id="open-prescription-history" class="btn btn-outline btn-small" type="button">Ver detalle</button>
+                </div>
+                <div id="doctor-prescription-history-preview" class="compact-list"></div>
+              </article>
+            </section>
           </div>
         </section>
       </main>
+    </div>
+  </div>
+
+  <div id="expedient-detail-modal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal-card modal-card-wide">
+      <div class="content-header">
+        <div>
+          <h2 id="expedient-detail-title">Detalle</h2>
+          <p id="expedient-detail-subtitle">Consulta la informacion completa.</p>
+        </div>
+        <button id="expedient-detail-close" class="btn btn-outline btn-small" type="button">Cerrar</button>
+      </div>
+      <div id="expedient-detail-body" class="appointment-list"></div>
     </div>
   </div>
 

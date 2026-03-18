@@ -382,6 +382,16 @@ textarea {
   gap: 1rem;
 }
 
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.compact-grid {
+  grid-template-columns: 1fr;
+}
+
 .demo-grid {
   grid-template-columns: repeat(2, 1fr);
 }
@@ -393,11 +403,40 @@ textarea {
 .med-card,
 .appointment-card,
 .form-card,
-.recipe-card {
+.recipe-card,
+.detail-panel {
   padding: 1.15rem;
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(23, 49, 43, 0.08);
+}
+
+.compact-panel {
+  padding: 1rem 1.05rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.summary-item {
+  padding: 0.9rem 1rem;
+  border-radius: 16px;
+  background: rgba(18, 124, 104, 0.06);
+  border: 1px solid rgba(18, 124, 104, 0.08);
+}
+
+.summary-item strong,
+.summary-item span {
+  display: block;
+}
+
+.summary-item span {
+  color: var(--muted);
+  margin-bottom: 0.25rem;
 }
 
 .demo-card strong,
@@ -571,6 +610,32 @@ textarea {
   gap: 1rem;
 }
 
+.compact-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.compact-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: start;
+  padding: 0.9rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(23, 49, 43, 0.08);
+}
+
+.compact-item strong,
+.compact-item p {
+  margin: 0;
+}
+
+.compact-item p {
+  color: var(--muted);
+  margin-top: 0.3rem;
+}
+
 .med-meta,
 .appointment-meta {
   color: var(--muted);
@@ -707,6 +772,10 @@ textarea {
   padding: 1.4rem;
 }
 
+.modal-card-wide {
+  width: min(860px, 100%);
+}
+
 .modal-form {
   display: grid;
   gap: 1rem;
@@ -715,11 +784,13 @@ textarea {
 @media (max-width: 1024px) {
   .hero-grid,
   .dashboard-grid,
+  .detail-grid,
   .patient-layout,
   .doctor-layout,
   .feature-grid,
   .stats-grid,
-  .form-row {
+  .form-row,
+  .summary-grid {
     grid-template-columns: 1fr;
   }
 

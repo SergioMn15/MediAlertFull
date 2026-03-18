@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MediAlert - Panel Doctor</title>
+  <title>MediAlert - Agenda</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,40 +22,38 @@
       <main class="main-content">
         <div class="content-header">
           <div>
-            <h2>Alta de paciente</h2>
-            <p>Registra nuevos pacientes y valida su CURP antes de incorporarlos al sistema.</p>
+            <h2>Agenda</h2>
+            <p>Vista operativa del dia con proximas citas y solicitudes pendientes de tus pacientes.</p>
           </div>
         </div>
 
+        <section>
+          <div id="doctor-agenda-stats" class="stats-grid">
+            <article class="stat-card">
+              <span>Citas de hoy</span>
+              <strong>0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Proximas citas</span>
+              <strong>0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Solicitudes pendientes</span>
+              <strong>0</strong>
+            </article>
+          </div>
+        </section>
+
         <section class="dashboard-grid">
           <div class="stack">
-            <article class="form-card">
-              <form id="register-patient-form">
-                <div class="form-group">
-                  <label for="patient-curp-input">CURP</label>
-                  <input type="text" id="patient-curp-input" maxlength="18" placeholder="TEST010101HDFAAA09" required>
-                </div>
-                <div class="form-group">
-                  <label for="patient-name-input">Nombre completo</label>
-                  <input type="text" id="patient-name-input" placeholder="Nombre del paciente" required>
-                </div>
-                <div class="form-group">
-                  <label for="patient-password">Contrasena temporal</label>
-                  <input type="password" id="patient-password" minlength="6" placeholder="Minimo 6 caracteres" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Registrar paciente</button>
-                <p id="register-result" class="form-message"></p>
-              </form>
-            </article>
-
             <section>
               <div class="content-header">
                 <div>
-                  <h2>Pacientes</h2>
-                  <p>Listado rapido asociado a tu cuenta.</p>
+                  <h2>Proximas citas</h2>
+                  <p>Agenda general de tus pacientes ordenada por fecha mas cercana.</p>
                 </div>
               </div>
-              <div id="doctor-patient-list" class="medication-list"></div>
+              <div id="doctor-appointments" class="appointment-list"></div>
             </section>
           </div>
 
@@ -63,11 +61,11 @@
             <section>
               <div class="content-header">
                 <div>
-                  <h2>Resumen del paciente</h2>
-                  <p>Vista previa automatica a partir de la CURP capturada.</p>
+                  <h2>Solicitudes de cita</h2>
+                  <p>Autoriza o rechaza peticiones de tus pacientes.</p>
                 </div>
               </div>
-              <div id="patient-curp-summary"></div>
+              <div id="doctor-request-list" class="appointment-list"></div>
             </section>
           </div>
         </section>

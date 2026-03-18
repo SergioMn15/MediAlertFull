@@ -2,6 +2,13 @@
   let cachedPatients = [];
   let prescriptionDraft = [];
   let requestModalState = null;
+  let selectedPatientCurp = '';
+  let expedientDetailState = {
+    patientName: '',
+    prescriptions: [],
+    appointments: [],
+    requests: []
+  };
 
   async function initDoctorPage() {
     const app = window.MediAlertMain;
@@ -24,7 +31,9 @@
     bindCurpPreview();
     bindRequestModal();
     bindRequestActions();
+    bindExpedientDetailModal();
     bindPatientSelector();
+    bindClinicalProfileForm();
     bindPrescriptionDraftActions();
     bindPrescriptionForm();
     renderPrescriptionDraft();
@@ -233,6 +242,7 @@
     const patientSummaryBox = document.getElementById('patient-curp-summary');
     const patientsBox = document.getElementById('doctor-patient-list');
     const patientSelect = document.getElementById('prescription-patient-select');
+    const agendaStats = document.getElementById('doctor-agenda-stats');
     const appointmentsBox = document.getElementById('doctor-appointments');
     const requestBox = document.getElementById('doctor-request-list');
 
@@ -269,7 +279,14 @@
       }
 
       if (appointmentsBox) {
-        const doctorAppointments = appointments.appointments || [];
+        const doctorAppointments = getUpcomingAppointments(appointments.appointments || []);
+        if (agendaStats) {
+          agendaStats.innerHTML = renderAgendaStats(
+            countTodayAppointments(doctorAppointments),
+            doctorAppointments.length,
+            countPendingRequests(requests.requests || [])
+          );
+        }
         appointmentsBox.innerHTML = doctorAppointments.length
           ? doctorAppointments.map((appointment) => `
               <article class="appointment-card">
@@ -285,7 +302,7 @@
       }
 
       if (requestBox) {
-        const doctorRequests = requests.requests || [];
+        const doctorRequests = sortDoctorRequests(requests.requests || []);
         requestBox.innerHTML = doctorRequests.length
           ? doctorRequests.map((request) => `
               <article class="appointment-card">
@@ -312,12 +329,87 @@
                 </div>
               </article>
             `).join('')
-          : '<div class="empty-state">No hay solicitudes de cita pendientes.</div>';
+          : '<div class="empty-state">No hay solicitudes de cita vigentes.</div>';
       }
     } catch (error) {
       console.error('Load summary error:', error);
     }
   }
+
+  function renderAgendaStats(todayAppointments = 0, upcomingAppointments = 0, pendingRequests = 0) {
+    return `
+      <article class="stat-card">
+        <span>Citas de hoy</span>
+        <strong>${todayAppointments}</strong>
+      </article>
+      <article class="stat-card">
+        <span>Proximas citas</span>
+        <strong>${upcomingAppointments}</strong>
+      </article>
+      <article class="stat-card">
+        <span>Solicitudes pendientes</span>
+        <strong>${pendingRequests}</strong>
+      </article>
+    `;
+  }
+
+  function getUpcomingAppointments(appointments) {
+    const now = new Date();
+
+    return appointments
+      .filter((appointment) => {
+        const appointmentDate = parseScheduleDateTime(appointment.date, appointment.time);
+        return !Number.isNaN(appointmentDate.getTime()) && appointmentDate >= now;
+      })
+      .sort((left, right) => {
+        const leftDate = parseScheduleDateTime(left.date, left.time);
+        const rightDate = parseScheduleDateTime(right.date, right.time);
+        return leftDate - rightDate;
+      });
+  }
+
+  function countTodayAppointments(appointments) {
+    const today = new Date().toISOString().slice(0, 10);
+    return appointments.filter((appointment) => String(appointment.date || '').slice(0, 10) === today).length;
+  }
+
+  function countPendingRequests(requests) {
+    return requests.filter((request) => request.status === 'pending').length;
+  }
+
+  function sortDoctorRequests(requests) {
+    const now = new Date();
+    const statusOrder = { pending: 0, approved: 1, rejected: 2 };
+
+    return requests
+      .filter((request) => {
+        if (request.status === 'pending') {
+          return true;
+        }
+
+        const requestDate = parseScheduleDateTime(request.requested_date, request.requested_time);
+        return !Number.isNaN(requestDate.getTime()) && requestDate >= now;
+      })
+      .sort((left, right) => {
+        const leftStatus = statusOrder[left.status] ?? 3;
+        const rightStatus = statusOrder[right.status] ?? 3;
+
+        if (leftStatus !== rightStatus) {
+          return leftStatus - rightStatus;
+        }
+
+        const leftDate = parseScheduleDateTime(left.requested_date, left.requested_time);
+        const rightDate = parseScheduleDateTime(right.requested_date, right.requested_time);
+        return leftDate - rightDate;
+      });
+  }
+
+  function parseScheduleDateTime(dateValue, timeValue) {
+    const normalizedDate = String(dateValue || '').slice(0, 10);
+    const normalizedTime = String(timeValue || '').slice(0, 8) || '00:00:00';
+    return new Date(`${normalizedDate}T${normalizedTime}`);
+  }
+
   function bindRegisterForm() {
     const form = document.getElementById('register-patient-form');
     if (!form) {
@@ -482,6 +574,14 @@
         return;
       }
 
+      if (action === 'approve' && !isFutureSchedule(date, time)) {
+        if (message) {
+          message.textContent = 'La fecha y hora aprobadas deben ser futuras.';
+          message.className = 'form-message error';
+        }
+        return;
+      }
+
       try {
         const payload = action === 'approve'
           ? {
@@ -524,6 +624,7 @@
     const response = document.getElementById('request-modal-response');
     const submit = document.getElementById('request-modal-submit');
     const message = document.getElementById('request-modal-message');
+    const suggestedSchedule = getSuggestedFutureSchedule(config.date, config.time);
 
     if (!modal) {
       return;
@@ -547,11 +648,12 @@
       patient.value = config.patientName;
     }
     if (date) {
-      date.value = config.date || '';
+      date.value = config.action === 'approve' ? suggestedSchedule.date : (config.date || '');
       date.disabled = config.action !== 'approve';
+      date.min = config.action === 'approve' ? suggestedSchedule.minDate : '';
     }
     if (time) {
-      time.value = config.time || '';
+      time.value = config.action === 'approve' ? suggestedSchedule.time : (config.time || '');
       time.disabled = config.action !== 'approve';
     }
     if (response) {
@@ -592,6 +694,30 @@
     }
   }
 
+  function getSuggestedFutureSchedule(date, time) {
+    const now = new Date();
+    const candidate = date && time ? new Date(`${date}T${time}`) : null;
+    const isCandidateValid = candidate && !Number.isNaN(candidate.getTime()) && candidate > now;
+    const fallback = new Date(now.getTime() + 60 * 60 * 1000);
+
+    const selected = isCandidateValid ? candidate : fallback;
+
+    return {
+      date: selected.toISOString().slice(0, 10),
+      time: `${String(selected.getHours()).padStart(2, '0')}:${String(selected.getMinutes()).padStart(2, '0')}`,
+      minDate: now.toISOString().slice(0, 10)
+    };
+  }
+
+  function isFutureSchedule(date, time) {
+    if (!date || !time) {
+      return false;
+    }
+
+    const selectedDate = new Date(`${date}T${time}`);
+    return !Number.isNaN(selectedDate.getTime()) && selectedDate > new Date();
+  }
+
   function bindPatientSelector() {
     const selector = document.getElementById('prescription-patient-select');
     if (!selector) {
@@ -605,20 +731,39 @@
   }
 
   async function loadSelectedPatientPrescription(curp) {
+    selectedPatientCurp = curp || '';
     const meta = document.getElementById('prescription-patient-meta');
     const patientCard = document.getElementById('selected-patient-card');
+    const patientStats = document.getElementById('patient-summary-stats');
     const medicationList = document.getElementById('doctor-medication-list');
+    const historyPreview = document.getElementById('doctor-prescription-history-preview');
+    const appointmentsPreview = document.getElementById('doctor-patient-appointments-preview');
+    const requestsPreview = document.getElementById('doctor-patient-requests-preview');
 
     if (!curp) {
       if (meta) {
-        meta.textContent = 'Selecciona un paciente para ver su receta actual.';
+        meta.textContent = 'Selecciona un paciente para abrir su expediente clinico.';
       }
       if (patientCard) {
         patientCard.innerHTML = '<div class="empty-state">Aun no hay paciente seleccionado.</div>';
       }
+      if (patientStats) {
+        patientStats.innerHTML = renderPatientSummaryStats();
+      }
       if (medicationList) {
         medicationList.innerHTML = '<div class="empty-state">Sin receta activa.</div>';
       }
+      if (historyPreview) {
+        historyPreview.innerHTML = '<div class="empty-state">Sin historial de recetas.</div>';
+      }
+      if (appointmentsPreview) {
+        appointmentsPreview.innerHTML = '<div class="empty-state">Sin citas registradas.</div>';
+      }
+      if (requestsPreview) {
+        requestsPreview.innerHTML = '<div class="empty-state">Sin solicitudes registradas.</div>';
+      }
+      fillClinicalProfileForm();
+      expedientDetailState = { patientName: '', prescriptions: [], appointments: [], requests: [] };
       return;
     }
 
@@ -627,29 +772,76 @@
       const patient = response.patient;
       const activePrescription = patient.active_prescription;
       const medications = patient.medications || [];
+      const prescriptionsHistory = patient.prescriptions_history || [];
+      const appointments = patient.appointments || [];
+      const requests = patient.appointment_requests || [];
+      const nextAppointment = appointments
+        .slice()
+        .sort((left, right) => new Date(`${left.date}T${left.time}`) - new Date(`${right.date}T${right.time}`))[0];
+      const latestRequest = requests[0] || null;
+      const curpSummary = parseCurp(patient.curp);
+
+      expedientDetailState = {
+        patientName: patient.name,
+        prescriptions: prescriptionsHistory,
+        appointments,
+        requests
+      };
 
       if (meta) {
         meta.textContent = activePrescription
-          ? `Receta activa actualizada el ${formatDateTime(activePrescription.issued_at)}.`
-          : 'El paciente aun no tiene receta activa.';
+          ? `Expediente activo. Receta actualizada el ${formatDateTime(activePrescription.issued_at)}.`
+          : 'Expediente activo sin receta medica actual.';
       }
 
       if (patientCard) {
+        const birthDateLabel = curpSummary.isValid ? curpSummary.birthDateLabel : 'No disponible';
+        const ageLabel = curpSummary.isValid ? `${curpSummary.age} anos` : 'Sin validar';
+        const genderLabel = curpSummary.isValid ? curpSummary.genderLabel : 'Sin validar';
+        const stateLabel = curpSummary.isValid ? curpSummary.stateLabel : 'Sin validar';
         patientCard.innerHTML = `
           <strong>${escapeHtml(patient.name)}</strong>
           <p>CURP: ${escapeHtml(patient.curp)}</p>
           <p>Diagnostico actual: ${escapeHtml(activePrescription?.diagnosis || 'Sin diagnostico')}</p>
           <p>Indicaciones generales: ${escapeHtml(activePrescription?.general_instructions || 'Sin indicaciones')}</p>
+          <div class="summary-grid">
+            <article class="summary-item">
+              <span>Registro</span>
+              <strong>${escapeHtml(formatDateTime(patient.created_at))}</strong>
+            </article>
+            <article class="summary-item">
+              <span>Nacimiento</span>
+              <strong>${escapeHtml(birthDateLabel)}</strong>
+            </article>
+            <article class="summary-item">
+              <span>Edad estimada</span>
+              <strong>${escapeHtml(ageLabel)}</strong>
+            </article>
+            <article class="summary-item">
+              <span>Sexo / entidad</span>
+              <strong>${escapeHtml(`${genderLabel} ? ${stateLabel}`)}</strong>
+            </article>
+          </div>
         `;
       }
+
+      if (patientStats) {
+        patientStats.innerHTML = renderPatientSummaryStats(
+          prescriptionsHistory.length,
+          appointments.length,
+          requests.length
+        );
+      }
+
+      fillClinicalProfileForm(patient);
 
       if (medicationList) {
         medicationList.innerHTML = medications.length
           ? medications.map((medication) => `
               <article class="med-card">
                 <div>
-                  <strong>${medication.emoji || '💊'} ${escapeHtml(medication.name)}</strong>
-                  <div class="med-meta">${medication.dose_mg} mg · ${escapeHtml(medication.frequency || 'Frecuencia por definir')} · ${formatTime(medication.time)}</div>
+                  <strong>${medication.emoji || '??'} ${escapeHtml(medication.name)}</strong>
+                  <div class="med-meta">${medication.dose_mg} mg ? ${escapeHtml(medication.frequency || 'Frecuencia por definir')} ? ${formatTime(medication.time)}</div>
                   <p>${escapeHtml(medication.notes || 'Sin observaciones')}</p>
                 </div>
                 <span class="status-badge scheduled">${medication.duration_days ? `${medication.duration_days} dias` : 'Activa'}</span>
@@ -657,16 +849,292 @@
             `).join('')
           : '<div class="empty-state">Sin medicamentos activos para este paciente.</div>';
       }
+
+      if (historyPreview) {
+        historyPreview.innerHTML = prescriptionsHistory.length
+          ? renderCompactPreview(
+              prescriptionsHistory.slice(0, 2).map((prescription) => ({
+                title: `Receta #${prescription.id}`,
+                meta: formatDateTime(prescription.issued_at),
+                body: prescription.diagnosis || 'Sin diagnostico',
+                badgeLabel: prescription.status === 'active' ? 'Activa' : 'Historica',
+                badgeClass: prescription.status === 'active' ? 'scheduled' : 'pending'
+              }))
+            )
+          : '<div class="empty-state">Este paciente aun no tiene recetas registradas.</div>';
+      }
+
+      if (appointmentsPreview) {
+        appointmentsPreview.innerHTML = appointments.length
+          ? renderCompactPreview(
+              appointments.slice(0, 2).map((appointment) => ({
+                title: formatDate(appointment.date),
+                meta: formatTime(appointment.time),
+                body: nextAppointment && appointment.id === nextAppointment.id
+                  ? 'Proxima cita programada.'
+                  : 'Cita registrada en el expediente.',
+                badgeLabel: formatRequestStatus(appointment.status || 'scheduled'),
+                badgeClass: 'scheduled'
+              }))
+            )
+          : '<div class="empty-state">No hay citas registradas para este paciente.</div>';
+      }
+
+      if (requestsPreview) {
+        requestsPreview.innerHTML = requests.length
+          ? renderCompactPreview(
+              requests.slice(0, 2).map((request) => ({
+                title: formatDate(request.requested_date),
+                meta: formatTime(request.requested_time),
+                body: request.reason || 'Sin motivo especificado',
+                badgeLabel: request === latestRequest
+                  ? `${formatRequestStatus(request.status)} ? reciente`
+                  : formatRequestStatus(request.status),
+                badgeClass: request.status || 'pending'
+              }))
+            )
+          : '<div class="empty-state">No hay solicitudes de cita para este paciente.</div>';
+      }
     } catch (error) {
       if (meta) {
-        meta.textContent = 'No fue posible cargar la receta del paciente.';
+        meta.textContent = 'No fue posible cargar el expediente del paciente.';
       }
       if (patientCard) {
         patientCard.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
       }
+      if (patientStats) {
+        patientStats.innerHTML = renderPatientSummaryStats();
+      }
       if (medicationList) {
         medicationList.innerHTML = '<div class="empty-state">No se pudieron cargar los medicamentos.</div>';
       }
+      if (historyPreview) {
+        historyPreview.innerHTML = '<div class="empty-state">No se pudo cargar el historial de recetas.</div>';
+      }
+      if (appointmentsPreview) {
+        appointmentsPreview.innerHTML = '<div class="empty-state">No se pudieron cargar las citas.</div>';
+      }
+      if (requestsPreview) {
+        requestsPreview.innerHTML = '<div class="empty-state">No se pudieron cargar las solicitudes.</div>';
+      }
+      fillClinicalProfileForm();
+      expedientDetailState = { patientName: '', prescriptions: [], appointments: [], requests: [] };
+    }
+  }
+
+  function renderPatientSummaryStats(prescriptions = 0, appointments = 0, requests = 0) {
+    return `
+      <article class="stat-card">
+        <span>Recetas</span>
+        <strong>${prescriptions}</strong>
+      </article>
+      <article class="stat-card">
+        <span>Citas</span>
+        <strong>${appointments}</strong>
+      </article>
+      <article class="stat-card">
+        <span>Solicitudes</span>
+        <strong>${requests}</strong>
+      </article>
+    `;
+  }
+
+  function renderCompactPreview(items) {
+    return items.map((item) => `
+      <article class="compact-item">
+        <div>
+          <strong>${escapeHtml(item.title)}</strong>
+          <div class="appointment-meta">${escapeHtml(item.meta)}</div>
+          <p>${escapeHtml(item.body)}</p>
+        </div>
+        <span class="status-badge ${item.badgeClass || 'scheduled'}">${escapeHtml(item.badgeLabel)}</span>
+      </article>
+    `).join('');
+  }
+
+  function bindExpedientDetailModal() {
+    const modal = document.getElementById('expedient-detail-modal');
+    const closeButton = document.getElementById('expedient-detail-close');
+    const historyButton = document.getElementById('open-prescription-history');
+    const appointmentsButton = document.getElementById('open-appointments-detail');
+    const requestsButton = document.getElementById('open-requests-detail');
+
+    if (!modal || modal.dataset.bound === 'true') {
+      return;
+    }
+
+    modal.dataset.bound = 'true';
+
+    closeButton?.addEventListener('click', closeExpedientDetailModal);
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeExpedientDetailModal();
+      }
+    });
+
+    historyButton?.addEventListener('click', () => openExpedientDetailModal('history'));
+    appointmentsButton?.addEventListener('click', () => openExpedientDetailModal('appointments'));
+    requestsButton?.addEventListener('click', () => openExpedientDetailModal('requests'));
+  }
+
+  function openExpedientDetailModal(type) {
+    const modal = document.getElementById('expedient-detail-modal');
+    const title = document.getElementById('expedient-detail-title');
+    const subtitle = document.getElementById('expedient-detail-subtitle');
+    const body = document.getElementById('expedient-detail-body');
+
+    if (!modal || !body) {
+      return;
+    }
+
+    if (type === 'history') {
+      if (title) {
+        title.textContent = 'Historial de recetas';
+      }
+      if (subtitle) {
+        subtitle.textContent = expedientDetailState.patientName
+          ? `Detalle completo de recetas para ${expedientDetailState.patientName}.`
+          : 'Selecciona un paciente para ver el detalle.';
+      }
+      body.innerHTML = expedientDetailState.prescriptions.length
+        ? expedientDetailState.prescriptions.map((prescription) => `
+            <article class="appointment-card">
+              <div>
+                <strong>Receta #${prescription.id}</strong>
+                <div class="appointment-meta">${formatDateTime(prescription.issued_at)}</div>
+                <p>${escapeHtml(prescription.diagnosis || 'Sin diagnostico')}</p>
+                <p>${escapeHtml(prescription.general_instructions || 'Sin indicaciones')}</p>
+                <p>${prescription.items?.length || 0} medicamento(s)</p>
+              </div>
+              <span class="status-badge ${prescription.status === 'active' ? 'scheduled' : 'pending'}">
+                ${prescription.status === 'active' ? 'Activa' : 'Historica'}
+              </span>
+            </article>
+          `).join('')
+        : '<div class="empty-state">No hay recetas registradas.</div>';
+    }
+
+    if (type === 'appointments') {
+      if (title) {
+        title.textContent = 'Detalle de citas';
+      }
+      if (subtitle) {
+        subtitle.textContent = expedientDetailState.patientName
+          ? `Citas registradas para ${expedientDetailState.patientName}.`
+          : 'Selecciona un paciente para ver el detalle.';
+      }
+      body.innerHTML = expedientDetailState.appointments.length
+        ? expedientDetailState.appointments.map((appointment) => `
+            <article class="appointment-card">
+              <div>
+                <strong>${formatDate(appointment.date)}</strong>
+                <div class="appointment-meta">${formatTime(appointment.time)}</div>
+                <p>Cita registrada en el expediente del paciente.</p>
+              </div>
+              <span class="status-badge scheduled">${escapeHtml(formatRequestStatus(appointment.status || 'scheduled'))}</span>
+            </article>
+          `).join('')
+        : '<div class="empty-state">No hay citas registradas.</div>';
+    }
+
+    if (type === 'requests') {
+      if (title) {
+        title.textContent = 'Detalle de solicitudes';
+      }
+      if (subtitle) {
+        subtitle.textContent = expedientDetailState.patientName
+          ? `Solicitudes de cita para ${expedientDetailState.patientName}.`
+          : 'Selecciona un paciente para ver el detalle.';
+      }
+      body.innerHTML = expedientDetailState.requests.length
+        ? expedientDetailState.requests.map((request) => `
+            <article class="appointment-card">
+              <div>
+                <strong>${formatDate(request.requested_date)}</strong>
+                <div class="appointment-meta">${formatTime(request.requested_time)}</div>
+                <p>${escapeHtml(request.reason || 'Sin motivo especificado')}</p>
+                ${request.doctor_response ? `<p><strong>Respuesta:</strong> ${escapeHtml(request.doctor_response)}</p>` : ''}
+              </div>
+              <span class="status-badge ${request.status || 'pending'}">${escapeHtml(formatRequestStatus(request.status))}</span>
+            </article>
+          `).join('')
+        : '<div class="empty-state">No hay solicitudes registradas.</div>';
+    }
+
+    modal.classList.remove('hidden');
+    modal.setAttribute('aria-hidden', 'false');
+  }
+
+  function closeExpedientDetailModal() {
+    const modal = document.getElementById('expedient-detail-modal');
+    if (!modal) {
+      return;
+    }
+
+    modal.classList.add('hidden');
+    modal.setAttribute('aria-hidden', 'true');
+  }
+
+  function bindClinicalProfileForm() {
+    const form = document.getElementById('clinical-profile-form');
+    if (!form || form.dataset.bound === 'true') {
+      return;
+    }
+
+    form.dataset.bound = 'true';
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+
+      const result = document.getElementById('clinical-profile-result');
+      if (!selectedPatientCurp) {
+        if (result) {
+          result.textContent = 'Selecciona un paciente antes de guardar el perfil clinico.';
+          result.className = 'form-message error';
+        }
+        return;
+      }
+
+      try {
+        await window.MediAlertAPI.updateClinicalProfile(selectedPatientCurp, {
+          allergies: document.getElementById('clinical-allergies')?.value || '',
+          medical_history: document.getElementById('clinical-history')?.value || '',
+          doctor_notes: document.getElementById('clinical-notes')?.value || ''
+        });
+
+        if (result) {
+          result.textContent = 'Perfil clinico guardado correctamente.';
+          result.className = 'form-message success';
+        }
+
+        window.MediAlertMain.showToast('Perfil clinico actualizado', 'success');
+        await loadSelectedPatientPrescription(selectedPatientCurp);
+      } catch (error) {
+        if (result) {
+          result.textContent = error.message;
+          result.className = 'form-message error';
+        }
+      }
+    });
+  }
+
+  function fillClinicalProfileForm(patient = null) {
+    const allergies = document.getElementById('clinical-allergies');
+    const history = document.getElementById('clinical-history');
+    const notes = document.getElementById('clinical-notes');
+    const result = document.getElementById('clinical-profile-result');
+
+    if (allergies) {
+      allergies.value = patient?.allergies || '';
+    }
+    if (history) {
+      history.value = patient?.medical_history || '';
+    }
+    if (notes) {
+      notes.value = patient?.doctor_notes || '';
+    }
+    if (result) {
+      result.textContent = '';
+      result.className = 'form-message';
     }
   }
 

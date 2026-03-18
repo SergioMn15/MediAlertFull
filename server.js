@@ -114,6 +114,9 @@ function initializeDemoData() {
     name: 'Rosa Martinez',
     password: bcrypt.hashSync('paciente123', 10),
     doctor_id: 1,
+    allergies: 'Penicilina',
+    medical_history: 'Hipertension arterial y control de glucosa en seguimiento.',
+    doctor_notes: 'Paciente adherente al tratamiento. Vigilar presion y apego a dieta.',
     created_at: new Date().toISOString()
   };
 
@@ -202,8 +205,26 @@ async function ensureDatabaseSchema() {
       name VARCHAR(100) NOT NULL,
       password VARCHAR(255) NOT NULL,
       doctor_id INTEGER REFERENCES doctors(id) ON DELETE SET NULL,
+      allergies TEXT DEFAULT '',
+      medical_history TEXT DEFAULT '',
+      doctor_notes TEXT DEFAULT '',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE patients
+    ADD COLUMN IF NOT EXISTS allergies TEXT DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE patients
+    ADD COLUMN IF NOT EXISTS medical_history TEXT DEFAULT ''
+  `);
+
+  await db.query(`
+    ALTER TABLE patients
+    ADD COLUMN IF NOT EXISTS doctor_notes TEXT DEFAULT ''
   `);
 
   await db.query(`
@@ -295,14 +316,35 @@ async function ensureDatabaseDemoData() {
   if (patientCheck.rows.length === 0) {
     const hashedPatientPassword = await bcrypt.hash('paciente123', 10);
     const patientResult = await db.query(
-      `INSERT INTO patients (curp, name, password, doctor_id)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO patients (curp, name, password, doctor_id, allergies, medical_history, doctor_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING id`,
-      ['TEST010101HDFAAA09', 'Rosa Martinez', hashedPatientPassword, doctorId]
+      [
+        'TEST010101HDFAAA09',
+        'Rosa Martinez',
+        hashedPatientPassword,
+        doctorId,
+        'Penicilina',
+        'Hipertension arterial y control de glucosa en seguimiento.',
+        'Paciente adherente al tratamiento. Vigilar presion y apego a dieta.'
+      ]
     );
     patientId = patientResult.rows[0].id;
   } else {
     patientId = patientCheck.rows[0].id;
+    await db.query(
+      `UPDATE patients
+       SET allergies = COALESCE(NULLIF(allergies, ''), $2),
+           medical_history = COALESCE(NULLIF(medical_history, ''), $3),
+           doctor_notes = COALESCE(NULLIF(doctor_notes, ''), $4)
+       WHERE id = $1`,
+      [
+        patientId,
+        'Penicilina',
+        'Hipertension arterial y control de glucosa en seguimiento.',
+        'Paciente adherente al tratamiento. Vigilar presion y apego a dieta.'
+      ]
+    );
   }
 
   const prescriptionCheck = await db.query('SELECT COUNT(*)::int AS total FROM prescriptions WHERE patient_id = $1', [patientId]);
