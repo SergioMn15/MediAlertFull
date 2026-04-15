@@ -104,20 +104,21 @@
   function getMedicationFormData() {
     const name = document.getElementById('medication-name-input')?.value.trim();
     const dose_mg = Number(document.getElementById('medication-dose-input')?.value);
-    const frequency = document.getElementById('medication-frequency-input')?.value.trim() || '';
+    const intervalValue = Number(document.getElementById('medication-interval-input')?.value);
     const durationValue = document.getElementById('medication-duration-input')?.value;
     const time = document.getElementById('medication-time-input')?.value;
     const emoji = document.getElementById('medication-emoji-input')?.value.trim() || '💊';
     const notes = document.getElementById('medication-notes-input')?.value.trim() || '';
 
-    if (!name || !dose_mg || !time) {
+    if (!name || !dose_mg || !time || !intervalValue) {
       return null;
     }
 
     return {
       name,
       dose_mg,
-      frequency,
+      frequency: `Cada ${intervalValue} horas`,
+      interval_hours: intervalValue,
       duration_days: durationValue ? Number(durationValue) : null,
       time,
       emoji,
@@ -129,7 +130,7 @@
     [
       'medication-name-input',
       'medication-dose-input',
-      'medication-frequency-input',
+      'medication-interval-input',
       'medication-duration-input',
       'medication-time-input',
       'medication-emoji-input',
@@ -420,10 +421,13 @@
       event.preventDefault();
       const curp = document.getElementById('patient-curp-input')?.value.toUpperCase().trim();
       const name = document.getElementById('patient-name-input')?.value.trim();
+      const email = document.getElementById('patient-email-input')?.value.trim() || '';
+      const phone = document.getElementById('patient-phone-input')?.value.trim() || '';
+      const reminder_channel = document.getElementById('patient-reminder-channel-input')?.value || 'email';
       const password = document.getElementById('patient-password')?.value;
 
       try {
-        await window.MediAlertAPI.registerPatient(curp, name, password);
+        await window.MediAlertAPI.registerPatient({ curp, name, email, phone, reminder_channel, password });
         window.MediAlertMain.showToast('Paciente registrado', 'success');
         form.reset();
         renderCurpSummary('');
@@ -819,7 +823,7 @@
             </article>
             <article class="summary-item">
               <span>Sexo / entidad</span>
-              <strong>${escapeHtml(`${genderLabel} ? ${stateLabel}`)}</strong>
+              <strong>${escapeHtml(`${genderLabel} · ${stateLabel}`)}</strong>
             </article>
           </div>
         `;
@@ -840,8 +844,8 @@
           ? medications.map((medication) => `
               <article class="med-card">
                 <div>
-                  <strong>${medication.emoji || '??'} ${escapeHtml(medication.name)}</strong>
-                  <div class="med-meta">${medication.dose_mg} mg ? ${escapeHtml(medication.frequency || 'Frecuencia por definir')} ? ${formatTime(medication.time)}</div>
+                  <strong>${medication.emoji || '💊'} ${escapeHtml(medication.name)}</strong>
+                  <div class="med-meta">${medication.dose_mg} mg · ${escapeHtml(medication.frequency || 'Frecuencia por definir')} · ${formatTime(medication.time)}</div>
                   <p>${escapeHtml(medication.notes || 'Sin observaciones')}</p>
                 </div>
                 <span class="status-badge scheduled">${medication.duration_days ? `${medication.duration_days} dias` : 'Activa'}</span>
@@ -888,7 +892,7 @@
                 meta: formatTime(request.requested_time),
                 body: request.reason || 'Sin motivo especificado',
                 badgeLabel: request === latestRequest
-                  ? `${formatRequestStatus(request.status)} ? reciente`
+                  ? `${formatRequestStatus(request.status)} · reciente`
                   : formatRequestStatus(request.status),
                 badgeClass: request.status || 'pending'
               }))

@@ -16,7 +16,15 @@ function authHeaders(includeJson = true) {
 }
 
 async function request(url, options = {}) {
-  const response = await fetch(url, options);
+  let response;
+  try {
+    response = await fetch(url, {
+      cache: 'no-store',
+      ...options
+    });
+  } catch (networkError) {
+    throw new Error('Sin conexion al servidor. Verifica tu red e intenta de nuevo.');
+  }
   const data = await response.json();
 
   if (!response.ok) {
@@ -47,11 +55,25 @@ window.MediAlertAPI = {
     });
   },
 
+  getReminderOverview(curp) {
+    return request(`${API_BASE}/patients/${curp}/reminders/overview`, {
+      headers: authHeaders(false)
+    });
+  },
+
   bookAppointment(curp, date, time) {
     return request(`${API_BASE}/patients/${curp}/appointments`, {
       method: 'POST',
       headers: authHeaders(),
       body: JSON.stringify({ date, time })
+    });
+  },
+
+  recordMedicationTake(curp, itemId, action) {
+    return request(`${API_BASE}/patients/${curp}/medication-takes`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ prescription_item_id: itemId, action })
     });
   },
 
@@ -69,11 +91,11 @@ window.MediAlertAPI = {
     });
   },
 
-  registerPatient(curp, name, password) {
+  registerPatient(payload) {
     return request(`${API_BASE}/patients`, {
       method: 'POST',
       headers: authHeaders(),
-      body: JSON.stringify({ curp, name, password })
+      body: JSON.stringify(payload)
     });
   },
 

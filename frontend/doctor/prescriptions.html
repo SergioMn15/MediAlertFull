@@ -63,8 +63,8 @@
                 </div>
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="medication-frequency-input">Frecuencia</label>
-                    <input type="text" id="medication-frequency-input" placeholder="Ej. Cada 12 horas">
+                    <label for="medication-interval-input">Intervalo (horas)</label>
+                    <input type="number" id="medication-interval-input" min="1" placeholder="8">
                   </div>
                   <div class="form-group">
                     <label for="medication-duration-input">Duracion (dias)</label>
@@ -73,7 +73,7 @@
                 </div>
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="medication-time-input">Horario</label>
+                    <label for="medication-time-input">Primera toma</label>
                     <input type="time" id="medication-time-input">
                   </div>
                   <div class="form-group">
@@ -163,3 +163,4 @@
   <script src="../js/doctor-dashboard.js"></script>
 </body>
 </html>
+

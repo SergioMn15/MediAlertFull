@@ -1,6 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { verifyToken, requireDoctor } = require('../middleware/auth');
+const notifier = require('../services/notifier');
+const { buildUpcomingReminders } = require('../services/reminderEngine');
 
 const router = express.Router();
 
@@ -11,7 +13,9 @@ function getDemoData(req) {
     prescriptions: {},
     medications: {},
     appointments: {},
-    appointmentRequests: {}
+    appointmentRequests: {},
+    medicationTakes: {},
+    notificationLogs: {}
   };
 }
 
@@ -21,6 +25,16 @@ function useDatabase(req) {
 
 function normalizeCurp(curp) {
   return String(curp || '').toUpperCase().trim();
+}
+
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function combineDateTime(dateValue, timeValue) {
+  const normalizedDate = String(dateValue || '').slice(0, 10);
+  const normalizedTime = String(timeValue || '').slice(0, 8) || '00:00:00';
+  return new Date(`${normalizedDate}T${normalizedTime}`);
 }
 
 function canAccessPatientRecord(req, patient) {
@@ -137,6 +151,83 @@ function getPrescriptionHistoryFromDemo(demo, patientId) {
     .sort((left, right) => new Date(right.issued_at) - new Date(left.issued_at));
 }
 
+async function getTodayMedicationTakesFromDb(patientId, scheduledDate) {
+  const { query } = require('../config/db');
+  const result = await query(
+    `SELECT *
+     FROM medication_takes
+     WHERE patient_id = $1 AND scheduled_date = $2
+     ORDER BY scheduled_time ASC, id ASC`,
+    [patientId, scheduledDate]
+  );
+
+  return result.rows;
+}
+
+function getTodayMedicationTakesFromDemo(demo, patientId, scheduledDate) {
+  return (demo.medicationTakes[patientId] || [])
+    .filter((item) => String(item.scheduled_date || '').slice(0, 10) === scheduledDate)
+    .sort((left, right) => combineDateTime(left.scheduled_date, left.scheduled_time) - combineDateTime(right.scheduled_date, right.scheduled_time));
+}
+
+function buildReminderPayload(activePrescription, medicationTakes, scheduledDate) {
+  const items = activePrescription?.items || [];
+  const takeMap = new Map(
+    medicationTakes.map((take) => [`${take.prescription_item_id}-${String(take.scheduled_date).slice(0, 10)}`, take])
+  );
+
+  const reminders = items
+    .map((item) => {
+      const take = takeMap.get(`${item.id}-${scheduledDate}`) || null;
+      const reminderTime = take?.status === 'snoozed' && take?.snoozed_until
+        ? new Date(take.snoozed_until).toISOString().slice(11, 19)
+        : item.time;
+
+      return {
+        item_id: item.id,
+        prescription_id: activePrescription.id,
+        name: item.name,
+        dose_mg: item.dose_mg,
+        frequency: item.frequency || '',
+        notes: item.notes || '',
+        emoji: item.emoji || '💊',
+        scheduled_date: scheduledDate,
+        scheduled_time: item.time,
+        reminder_time: reminderTime,
+        status: take?.status || 'pending',
+        take_id: take?.id || null,
+        snoozed_until: take?.snoozed_until || null,
+        action_taken_at: take?.action_taken_at || null
+      };
+    })
+    .sort((left, right) => combineDateTime(left.scheduled_date, left.reminder_time) - combineDateTime(right.scheduled_date, right.reminder_time));
+
+  const history = reminders
+    .filter((item) => item.status !== 'pending')
+    .sort((left, right) => {
+      const leftTime = left.action_taken_at ? new Date(left.action_taken_at) : combineDateTime(left.scheduled_date, left.reminder_time);
+      const rightTime = right.action_taken_at ? new Date(right.action_taken_at) : combineDateTime(right.scheduled_date, right.reminder_time);
+      return rightTime - leftTime;
+    });
+
+  const total = reminders.length;
+  const taken = reminders.filter((item) => item.status === 'taken').length;
+  const pendingLike = reminders.filter((item) => item.status === 'pending' || item.status === 'snoozed');
+  const nextDose = pendingLike.length > 0 ? pendingLike[0].reminder_time : null;
+
+  return {
+    scheduled_date: scheduledDate,
+    reminders,
+    history,
+    stats: {
+      total_medications: total,
+      taken_count: taken,
+      adherence_percent: total ? Math.round((taken / total) * 100) : 0,
+      next_dose: nextDose
+    }
+  };
+}
+
 router.get('/', verifyToken, requireDoctor, async (req, res) => {
   try {
     const demo = getDemoData(req);
@@ -194,7 +285,16 @@ router.get('/', verifyToken, requireDoctor, async (req, res) => {
 
 router.post('/', verifyToken, requireDoctor, async (req, res) => {
   try {
-    const { curp, name, password } = req.body;
+    const {
+      curp,
+      name,
+      password,
+      email = '',
+      phone = '',
+      reminder_channel = 'email',
+      reminder_opt_in = true
+    } = req.body;
+
     if (!curp || !name || !password) {
       return res.status(400).json({ error: 'Faltan datos requeridos' });
     }
@@ -215,10 +315,10 @@ router.post('/', verifyToken, requireDoctor, async (req, res) => {
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const result = await query(
-        `INSERT INTO patients (curp, name, password, doctor_id, allergies, medical_history, doctor_notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING id, curp, name, allergies, medical_history, doctor_notes, created_at`,
-        [curp.toUpperCase(), name, hashedPassword, req.user.id, '', '', '']
+        `INSERT INTO patients (curp, name, email, phone, reminder_channel, reminder_opt_in, password, doctor_id, allergies, medical_history, doctor_notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING id, curp, name, email, phone, reminder_channel, reminder_opt_in, allergies, medical_history, doctor_notes, created_at`,
+        [curp.toUpperCase(), name, email.trim(), phone.trim(), reminder_channel, reminder_opt_in !== false, hashedPassword, req.user.id, '', '', '']
       );
 
       return res.status(201).json({
@@ -237,6 +337,10 @@ router.post('/', verifyToken, requireDoctor, async (req, res) => {
       id: newId,
       curp: curp.toUpperCase(),
       name,
+      email: email.trim(),
+      phone: phone.trim(),
+      reminder_channel,
+      reminder_opt_in: reminder_opt_in !== false,
       password: bcrypt.hashSync(password, 10),
       doctor_id: req.user.id,
       allergies: '',
@@ -248,6 +352,8 @@ router.post('/', verifyToken, requireDoctor, async (req, res) => {
     demo.medications[newId] = [];
     demo.appointments[newId] = [];
     demo.appointmentRequests[newId] = [];
+    demo.medicationTakes[newId] = [];
+    demo.notificationLogs[newId] = [];
 
     return res.status(201).json({
       success: true,
@@ -276,7 +382,7 @@ router.get('/:curp', verifyToken, async (req, res) => {
     if (isDb) {
       const { query } = require('../config/db');
       const patientResult = await query(
-        'SELECT id, curp, name, doctor_id, allergies, medical_history, doctor_notes, created_at FROM patients WHERE UPPER(curp) = UPPER($1)',
+        'SELECT id, curp, name, email, phone, reminder_channel, reminder_opt_in, doctor_id, allergies, medical_history, doctor_notes, created_at FROM patients WHERE UPPER(curp) = UPPER($1)',
         [curp]
       );
 
@@ -770,4 +876,350 @@ router.put('/:curp/clinical-profile', verifyToken, requireDoctor, async (req, re
   }
 });
 
+router.get('/:curp/reminders/today', verifyToken, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const scheduledDate = getTodayDateString();
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    let patient;
+    let activePrescription = null;
+    let medicationTakes = [];
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      activePrescription = await getActivePrescriptionFromDb(patient.id);
+      medicationTakes = await getTodayMedicationTakesFromDb(patient.id, scheduledDate);
+    } else {
+      patient = Object.values(demo.patients).find((item) => normalizeCurp(item.curp) === normalizeCurp(curp));
+      if (!patient) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      activePrescription = getActivePrescriptionFromDemo(demo, patient.id);
+      medicationTakes = getTodayMedicationTakesFromDemo(demo, patient.id, scheduledDate);
+    }
+
+    const payload = buildReminderPayload(activePrescription, medicationTakes, scheduledDate);
+    return res.json({ success: true, ...payload });
+  } catch (error) {
+    console.error('Error al obtener recordatorios del dia:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.post('/test-sms', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({ error: 'Se requiere número de teléfono' });
+    }
+
+    const patientMock = { phone: phone, reminder_channel: 'sms' };
+    const itemMock = { name: 'Ibuprofeno 500mg' };
+    const scheduledAt = new Date();
+
+    const result = await notifier.sendSMSReminder(patientMock, itemMock, scheduledAt);
+    
+    return res.json({
+      success: true,
+      message: 'Test SMS enviado',
+      result
+    });
+  } catch (error) {
+    console.error('Error test SMS:', error);
+    return res.status(500).json({ error: 'Error enviando test SMS' });
+  }
+});
+
+router.post('/test-whatsapp', async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone) {
+      return res.status(400).json({ error: 'Se requiere numero de telefono' });
+    }
+
+    const patientMock = {
+      name: 'Paciente de prueba',
+      phone,
+      reminder_channel: 'whatsapp',
+      reminder_opt_in: true
+    };
+    const itemMock = {
+      name: 'Ibuprofeno',
+      dose_mg: 500,
+      notes: 'Seguir la receta medica.'
+    };
+    const scheduledAt = new Date();
+
+    const result = await notifier.sendWhatsappReminder(patientMock, itemMock, scheduledAt);
+
+    return res.json({
+      success: true,
+      message: 'Test WhatsApp ejecutado',
+      provider: 'pywhatkit',
+      result
+    });
+  } catch (error) {
+    console.error('Error test WhatsApp:', error);
+    return res.status(500).json({ error: 'Error enviando test WhatsApp' });
+  }
+});
+
+router.post('/:curp/medication-takes', verifyToken, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const { item_id, action, notes = '' } = req.body;
+    const scheduledDate = getTodayDateString();
+
+    if (req.user.role !== 'patient' || normalizeCurp(req.user.curp) !== normalizeCurp(curp)) {
+      return res.status(403).json({ error: 'Solo el paciente puede registrar sus propias tomas' });
+    }
+
+    if (!item_id || !['taken', 'skipped', 'snoozed'].includes(action)) {
+      return res.status(400).json({ error: 'Debes indicar un medicamento y una accion valida' });
+    }
+
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    let patient;
+    let activePrescription = null;
+    let targetItem = null;
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      activePrescription = await getActivePrescriptionFromDb(patient.id);
+      targetItem = activePrescription?.items?.find((item) => item.id === Number(item_id)) || null;
+
+      if (!activePrescription || !targetItem) {
+        return res.status(404).json({ error: 'Medicamento activo no encontrado' });
+      }
+
+      const scheduledTime = String(targetItem.time || '').slice(0, 8);
+      const snoozedUntil = action === 'snoozed'
+        ? new Date(Date.now() + (30 * 60 * 1000)).toISOString()
+        : null;
+
+      const existingResult = await query(
+        `SELECT id
+         FROM medication_takes
+         WHERE patient_id = $1 AND prescription_item_id = $2 AND scheduled_date = $3
+         LIMIT 1`,
+        [patient.id, targetItem.id, scheduledDate]
+      );
+
+      let medicationTake;
+      if (existingResult.rows.length > 0) {
+        const updateResult = await query(
+          `UPDATE medication_takes
+           SET medication_name = $1,
+               dose_mg = $2,
+               scheduled_time = $3,
+               status = $4,
+               notes = $5,
+               snoozed_until = $6,
+               action_taken_at = CURRENT_TIMESTAMP
+           WHERE id = $7
+           RETURNING *`,
+          [targetItem.name, targetItem.dose_mg, scheduledTime, action, notes.trim(), snoozedUntil, existingResult.rows[0].id]
+        );
+        medicationTake = updateResult.rows[0];
+      } else {
+        const insertResult = await query(
+          `INSERT INTO medication_takes
+             (patient_id, prescription_item_id, medication_name, dose_mg, scheduled_date, scheduled_time, status, notes, snoozed_until)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING *`,
+          [patient.id, targetItem.id, targetItem.name, targetItem.dose_mg, scheduledDate, scheduledTime, action, notes.trim(), snoozedUntil]
+        );
+        medicationTake = insertResult.rows[0];
+      }
+
+      return res.json({
+        success: true,
+        message: action === 'taken'
+          ? 'Medicamento marcado como tomado'
+          : action === 'skipped'
+            ? 'Toma marcada como omitida'
+            : 'Recordatorio pospuesto 30 minutos',
+        medication_take: medicationTake
+      });
+    }
+
+    patient = Object.values(demo.patients).find((item) => normalizeCurp(item.curp) === normalizeCurp(curp));
+    if (!patient) {
+      return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+
+    if (!ensurePatientAccess(req, res, patient)) {
+      return;
+    }
+
+    activePrescription = getActivePrescriptionFromDemo(demo, patient.id);
+    targetItem = activePrescription?.items?.find((item) => item.id === Number(item_id)) || null;
+
+    if (!activePrescription || !targetItem) {
+      return res.status(404).json({ error: 'Medicamento activo no encontrado' });
+    }
+
+    if (!demo.medicationTakes[patient.id]) {
+      demo.medicationTakes[patient.id] = [];
+    }
+
+    const snoozedUntil = action === 'snoozed'
+      ? new Date(Date.now() + (30 * 60 * 1000)).toISOString()
+      : null;
+    const existingIndex = demo.medicationTakes[patient.id].findIndex(
+      (item) => item.prescription_item_id === targetItem.id && String(item.scheduled_date || '').slice(0, 10) === scheduledDate
+    );
+
+    const medicationTake = {
+      id: existingIndex >= 0 ? demo.medicationTakes[patient.id][existingIndex].id : (demo.medicationTakes[patient.id].length + 1),
+      patient_id: patient.id,
+      prescription_item_id: targetItem.id,
+      medication_name: targetItem.name,
+      dose_mg: targetItem.dose_mg,
+      scheduled_date: scheduledDate,
+      scheduled_time: String(targetItem.time || '').slice(0, 8),
+      status: action,
+      notes: notes.trim(),
+      snoozed_until: snoozedUntil,
+      action_taken_at: new Date().toISOString()
+    };
+
+    if (existingIndex >= 0) {
+      demo.medicationTakes[patient.id][existingIndex] = medicationTake;
+    } else {
+      demo.medicationTakes[patient.id].push(medicationTake);
+    }
+
+    return res.json({
+      success: true,
+      message: action === 'taken'
+        ? 'Medicamento marcado como tomado'
+        : action === 'skipped'
+          ? 'Toma marcada como omitida'
+          : 'Recordatorio pospuesto 30 minutos',
+      medication_take: medicationTake
+    });
+  } catch (error) {
+    console.error('Error al registrar toma de medicamento:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+router.get('/:curp/reminders/overview', verifyToken, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    let patient;
+    let activePrescription = null;
+    let logs = [];
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, curp, name, email, phone, reminder_channel, reminder_opt_in, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      activePrescription = await getActivePrescriptionFromDb(patient.id);
+      const logsResult = await query(
+        'SELECT * FROM notification_logs WHERE patient_id = $1 ORDER BY scheduled_for DESC LIMIT 20',
+        [patient.id]
+      );
+      logs = logsResult.rows;
+    } else {
+      patient = Object.values(demo.patients).find((item) => normalizeCurp(item.curp) === normalizeCurp(curp));
+      if (!patient) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      activePrescription = getActivePrescriptionFromDemo(demo, patient.id);
+      logs = (demo.notificationLogs?.[patient.id] || []).slice().sort((left, right) => new Date(right.scheduled_for) - new Date(left.scheduled_for)).slice(0, 20);
+    }
+
+    const upcoming = buildUpcomingReminders(activePrescription, new Date(), 8).map((item) => ({
+      ...item,
+      channel_hint: patient.reminder_channel || 'email'
+    }));
+
+    const today = new Date().toISOString().slice(0, 10);
+    const sentToday = logs.filter((item) => String(item.scheduled_for || '').slice(0, 10) === today && ['sent', 'simulated'].includes(item.status)).length;
+
+    return res.json({
+      success: true,
+      stats: {
+        active_medications: activePrescription?.items?.length || 0,
+        sent_today: sentToday,
+        next_reminder: upcoming[0]?.scheduled_at || null,
+        channel: patient.reminder_channel || 'email'
+      },
+      settings: {
+        email: patient.email || '',
+        phone: patient.phone || '',
+        reminder_channel: patient.reminder_channel || 'email',
+        reminder_opt_in: patient.reminder_opt_in !== false
+      },
+      upcoming,
+      history: logs
+    });
+  } catch (error) {
+    console.error('Error al obtener overview de recordatorios:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router;
+

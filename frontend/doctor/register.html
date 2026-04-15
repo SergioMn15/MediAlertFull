@@ -40,6 +40,24 @@
                   <input type="text" id="patient-name-input" placeholder="Nombre del paciente" required>
                 </div>
                 <div class="form-group">
+                  <label for="patient-email-input">Correo de recordatorios</label>
+                  <input type="email" id="patient-email-input" placeholder="paciente@correo.com">
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="patient-phone-input">Telefono WhatsApp</label>
+                    <input type="text" id="patient-phone-input" placeholder="+5215512345678">
+                  </div>
+                  <div class="form-group">
+                    <label for="patient-reminder-channel-input">Canal</label>
+                    <select id="patient-reminder-channel-input">
+                      <option value="email">Correo</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="none">Sin recordatorios</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group">
                   <label for="patient-password">Contrasena temporal</label>
                   <input type="password" id="patient-password" minlength="6" placeholder="Minimo 6 caracteres" required>
                 </div>

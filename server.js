@@ -8,6 +8,7 @@ const authRoutes = require('./backend/src/routes/auth');
 const patientsRoutes = require('./backend/src/routes/patients');
 const doctorsRoutes = require('./backend/src/routes/doctors');
 const { getPool } = require('./backend/src/config/db');
+const { startReminderScheduler } = require('./backend/src/services/reminderScheduler');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -91,7 +92,9 @@ function createEmptyDemoData() {
     prescriptions: {},
     medications: {},
     appointments: {},
-    appointmentRequests: {}
+    appointmentRequests: {},
+    medicationTakes: {},
+    notificationLogs: {}
   };
 }
 
@@ -112,6 +115,10 @@ function initializeDemoData() {
     id: 1,
     curp: 'TEST010101HDFAAA09',
     name: 'Rosa Martinez',
+    email: 'rosa@example.com',
+    phone: '+5215550001111',
+    reminder_channel: 'email',
+    reminder_opt_in: true,
     password: bcrypt.hashSync('paciente123', 10),
     doctor_id: 1,
     allergies: 'Penicilina',
@@ -179,6 +186,9 @@ function initializeDemoData() {
     }
   ];
 
+  demoData.medicationTakes[1] = [];
+  demoData.notificationLogs[1] = [];
+
   app.set('demoData', demoData);
   app.set('useDatabase', false);
   app.set('db', null);
@@ -203,6 +213,10 @@ async function ensureDatabaseSchema() {
       id SERIAL PRIMARY KEY,
       curp VARCHAR(18) UNIQUE NOT NULL,
       name VARCHAR(100) NOT NULL,
+      email VARCHAR(100),
+      phone VARCHAR(30),
+      reminder_channel VARCHAR(20) DEFAULT 'email',
+      reminder_opt_in BOOLEAN DEFAULT true,
       password VARCHAR(255) NOT NULL,
       doctor_id INTEGER REFERENCES doctors(id) ON DELETE SET NULL,
       allergies TEXT DEFAULT '',
@@ -228,6 +242,26 @@ async function ensureDatabaseSchema() {
   `);
 
   await db.query(`
+    ALTER TABLE patients
+    ADD COLUMN IF NOT EXISTS email VARCHAR(100)
+  `);
+
+  await db.query(`
+    ALTER TABLE patients
+    ADD COLUMN IF NOT EXISTS phone VARCHAR(30)
+  `);
+
+  await db.query(`
+    ALTER TABLE patients
+    ADD COLUMN IF NOT EXISTS reminder_channel VARCHAR(20) DEFAULT 'email'
+  `);
+
+  await db.query(`
+    ALTER TABLE patients
+    ADD COLUMN IF NOT EXISTS reminder_opt_in BOOLEAN DEFAULT true
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS prescriptions (
       id SERIAL PRIMARY KEY,
       patient_id INTEGER REFERENCES patients(id) ON DELETE CASCADE,
@@ -246,11 +280,17 @@ async function ensureDatabaseSchema() {
       name VARCHAR(100) NOT NULL,
       dose_mg INTEGER NOT NULL,
       frequency VARCHAR(100),
+      interval_hours INTEGER DEFAULT 24,
       time TIME NOT NULL,
       duration_days INTEGER,
       notes TEXT,
       emoji VARCHAR(10) DEFAULT '💊'
     )
+  `);
+
+  await db.query(`
+    ALTER TABLE prescription_items
+    ADD COLUMN IF NOT EXISTS interval_hours INTEGER DEFAULT 24
   `);
 
   await db.query(`
@@ -291,13 +331,55 @@ async function ensureDatabaseSchema() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS medication_takes (
+      id SERIAL PRIMARY KEY,
+      patient_id INTEGER REFERENCES patients(id) ON DELETE CASCADE,
+      prescription_item_id INTEGER REFERENCES prescription_items(id) ON DELETE CASCADE,
+      medication_name VARCHAR(100) NOT NULL,
+      dose_mg INTEGER NOT NULL,
+      scheduled_date DATE NOT NULL,
+      scheduled_time TIME NOT NULL,
+      status VARCHAR(20) DEFAULT 'pending',
+      notes TEXT,
+      snoozed_until TIMESTAMP,
+      action_taken_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await db.query('CREATE INDEX IF NOT EXISTS idx_medication_takes_patient_id ON medication_takes(patient_id)');
+  await db.query('CREATE INDEX IF NOT EXISTS idx_medication_takes_schedule ON medication_takes(patient_id, scheduled_date)');
+
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS notification_logs (
+      id SERIAL PRIMARY KEY,
+      patient_id INTEGER REFERENCES patients(id) ON DELETE CASCADE,
+      prescription_item_id INTEGER REFERENCES prescription_items(id) ON DELETE CASCADE,
+      channel VARCHAR(20) NOT NULL,
+      recipient VARCHAR(120),
+      scheduled_for TIMESTAMP NOT NULL,
+      sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      status VARCHAR(20) NOT NULL,
+      provider VARCHAR(50),
+      error_message TEXT,
+      message_body TEXT
+    )
+  `);
+
+  await db.query('CREATE INDEX IF NOT EXISTS idx_notification_logs_patient_id ON notification_logs(patient_id)');
+  await db.query('CREATE INDEX IF NOT EXISTS idx_notification_logs_item_schedule ON notification_logs(prescription_item_id, scheduled_for)');
 }
 
 async function ensureDatabaseDemoData() {
+  let currentStep = 'doctor lookup';
+  console.log('[DB DEMO] Paso: buscar doctor demo');
   const doctorCheck = await db.query('SELECT id FROM doctors WHERE username = $1', ['doctor1']);
   let doctorId;
 
   if (doctorCheck.rows.length === 0) {
+    currentStep = 'doctor insert';
+    console.log('[DB DEMO] Paso: insertar doctor demo');
     const hashedDoctorPassword = await bcrypt.hash('medialert123', 10);
     const doctorResult = await db.query(
       `INSERT INTO doctors (username, email, password, name, license, specialty)
@@ -310,18 +392,26 @@ async function ensureDatabaseDemoData() {
     doctorId = doctorCheck.rows[0].id;
   }
 
+  currentStep = 'patient lookup';
+  console.log('[DB DEMO] Paso: buscar paciente demo');
   const patientCheck = await db.query('SELECT id FROM patients WHERE curp = $1', ['TEST010101HDFAAA09']);
   let patientId;
 
   if (patientCheck.rows.length === 0) {
+    currentStep = 'patient insert';
+    console.log('[DB DEMO] Paso: insertar paciente demo');
     const hashedPatientPassword = await bcrypt.hash('paciente123', 10);
     const patientResult = await db.query(
-      `INSERT INTO patients (curp, name, password, doctor_id, allergies, medical_history, doctor_notes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO patients (curp, name, email, phone, reminder_channel, reminder_opt_in, password, doctor_id, allergies, medical_history, doctor_notes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
         'TEST010101HDFAAA09',
         'Rosa Martinez',
+        'rosa@example.com',
+        '+5215550001111',
+        'email',
+        true,
         hashedPatientPassword,
         doctorId,
         'Penicilina',
@@ -332,6 +422,8 @@ async function ensureDatabaseDemoData() {
     patientId = patientResult.rows[0].id;
   } else {
     patientId = patientCheck.rows[0].id;
+    currentStep = 'patient update defaults';
+    console.log('[DB DEMO] Paso: actualizar perfil clinico demo');
     await db.query(
       `UPDATE patients
        SET allergies = COALESCE(NULLIF(allergies, ''), $2),
@@ -347,8 +439,12 @@ async function ensureDatabaseDemoData() {
     );
   }
 
+  currentStep = 'prescription count';
+  console.log('[DB DEMO] Paso: revisar recetas demo');
   const prescriptionCheck = await db.query('SELECT COUNT(*)::int AS total FROM prescriptions WHERE patient_id = $1', [patientId]);
   if (prescriptionCheck.rows[0].total === 0) {
+    currentStep = 'prescription insert';
+    console.log('[DB DEMO] Paso: insertar receta demo');
     const prescriptionResult = await db.query(
       `INSERT INTO prescriptions (patient_id, doctor_id, diagnosis, general_instructions, status)
        VALUES ($1, $2, $3, $4, $5)
@@ -362,32 +458,40 @@ async function ensureDatabaseDemoData() {
       ]
     );
 
+    currentStep = 'prescription items insert';
+    console.log('[DB DEMO] Paso: insertar medicamentos de receta demo');
     await db.query(
-      `INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, time, duration_days, notes, emoji)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8),
-              ($1, $9, $10, $11, $12, $13, $14, $15)`,
+      `INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, interval_hours, time, duration_days, notes, emoji)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9),
+              ($1, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         prescriptionResult.rows[0].id,
         'Losartan',
         50,
         'Cada 24 horas',
+        24,
         '08:00:00',
         30,
         'Tomar despues del desayuno',
         '💊',
-        'Metformina',
-        850,
-        'Cada 12 horas',
-        '14:00:00',
-        30,
-        'Tomar con alimentos',
-        '🩺'
+        'Paracetamol',
+        50,
+        'Cada 8 horas',
+        8,
+        '12:00:00',
+        5,
+        'Prueba',
+        '💊'
       ]
     );
   }
 
+  currentStep = 'medications count';
+  console.log('[DB DEMO] Paso: revisar medicamentos legacy demo');
   const medicationCheck = await db.query('SELECT COUNT(*)::int AS total FROM medications WHERE patient_id = $1', [patientId]);
   if (medicationCheck.rows[0].total === 0) {
+    currentStep = 'medications insert';
+    console.log('[DB DEMO] Paso: insertar medicamentos legacy demo');
     await db.query(
       `INSERT INTO medications (patient_id, name, dose_mg, time, notes, emoji, prescribed_by)
        VALUES ($1, $2, $3, $4, $5, $6, $7),
@@ -409,8 +513,12 @@ async function ensureDatabaseDemoData() {
     );
   }
 
+  currentStep = 'appointments count';
+  console.log('[DB DEMO] Paso: revisar citas demo');
   const appointmentCheck = await db.query('SELECT COUNT(*)::int AS total FROM appointments WHERE patient_id = $1', [patientId]);
   if (appointmentCheck.rows[0].total === 0) {
+    currentStep = 'appointments insert';
+    console.log('[DB DEMO] Paso: insertar cita demo');
     await db.query(
       `INSERT INTO appointments (patient_id, date, time, status)
        VALUES ($1, $2, $3, $4)`,
@@ -446,6 +554,14 @@ async function initDatabase() {
     app.set('useDatabase', true);
     console.log('🌟 Base de datos conectada COMPLETA');
   } catch (error) {
+    console.error('[DB INIT] Detalle del error:', {
+      message: error.message,
+      code: error.code,
+      severity: error.severity,
+      detail: error.detail,
+      hint: error.hint,
+      routine: error.routine
+    });
     console.error('💥 Error DB:', error.message);
     useDatabase = false;
     initializeDemoData();
@@ -454,6 +570,7 @@ async function initDatabase() {
 }
 
 initDatabase().then(() => {
+  startReminderScheduler(app);
   app.listen(PORT, () => {
     console.log(`MediAlert disponible en http://localhost:${PORT}`);
     console.log(`API disponible en http://localhost:${PORT}/api`);

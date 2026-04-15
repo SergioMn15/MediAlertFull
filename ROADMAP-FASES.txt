@@ -27,7 +27,7 @@ Resultado esperado:
 FASE 2 - Producto Clinico Util
 
 Meta:
-Agregar pantallas que aumenten valor real en el uso diario.
+Agregar pantallas que3 aumenten valor real en el uso diario.
 
 Pantallas recomendadas:
 - Expediente del paciente.

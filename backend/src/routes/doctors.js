@@ -10,7 +10,9 @@ function getDemoData(req) {
     prescriptions: {},
     medications: {},
     appointments: {},
-    appointmentRequests: {}
+    appointmentRequests: {},
+    medicationTakes: {},
+    notificationLogs: {}
   };
 }
 
@@ -212,12 +214,13 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
       
       for (const item of items) {
         const itemResult = await query(
-          'INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, time, duration_days, notes, emoji) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+          'INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, interval_hours, time, duration_days, notes, emoji) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
           [
             prescription.id,
             item.name,
             item.dose_mg,
             item.frequency || '',
+            item.interval_hours || 24,
             item.time,
             item.duration_days || null,
             item.notes || '',
@@ -269,6 +272,7 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
         name: item.name,
         dose_mg: item.dose_mg,
         frequency: item.frequency || '',
+        interval_hours: item.interval_hours || 24,
         time: item.time,
         duration_days: item.duration_days || null,
         notes: item.notes || '',
@@ -542,3 +546,4 @@ router.post('/appointment-requests/:requestId/review', verifyToken, requireDocto
 });
 
 module.exports = router;
+

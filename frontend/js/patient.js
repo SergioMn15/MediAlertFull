@@ -1,13 +1,13 @@
 (function () {
   let currentPatient = null;
   let selectedPrescriptionId = null;
+  let currentReminder = null;
 
   async function initPatientPage() {
     const app = window.MediAlertMain;
     if (!window.location.pathname.includes('/patient/')) {
       return;
     }
-
     if (!app?.state?.user) {
       app?.logout(false);
       return;
@@ -31,6 +31,8 @@
       bindAppointmentForm(patient);
       bindRecipeHistory();
       bindRecipePrint();
+      bindReminderActions(patient);
+      await loadTodayReminders(patient.curp);
     } catch (error) {
       app.showToast(error.message, 'error');
     }
@@ -279,6 +281,134 @@
         window.MediAlertMain.showToast(error.message, 'error');
       }
     });
+  }
+
+  async function loadTodayReminders(curp) {
+    const reminderList = document.getElementById('today-medications-list');
+    if (!reminderList) {
+      return;
+    }
+
+    try {
+      const data = await window.MediAlertAPI.getReminderOverview(curp);
+      renderReminderStats(data.stats || {});
+      renderReminderList(data.upcoming || [], curp);
+      renderReminderHistory(data.history || []);
+    } catch (error) {
+      reminderList.innerHTML = emptyState(error.message || 'No se pudieron cargar los recordatorios automaticos.');
+      renderReminderHistory([]);
+    }
+  }
+
+  function bindReminderActions(patient) {
+    const reminderList = document.getElementById('today-medications-list');
+    if (!reminderList || reminderList.dataset.bound === 'true') {
+      return;
+    }
+
+    reminderList.dataset.bound = 'true';
+    reminderList.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-action][data-item-id]');
+      if (!button || !patient?.curp) {
+        return;
+      }
+
+      const action = button.dataset.action;
+      const itemId = Number(button.dataset.itemId);
+      button.disabled = true;
+
+      try {
+        await window.MediAlertAPI.recordMedicationTake(patient.curp, itemId, action);
+        const labels = { take: 'Toma registrada', skip: 'Dosis omitida', snooze: 'Recordatorio pospuesto 30 min' };
+        window.MediAlertMain.showToast(labels[action] || 'Accion registrada', 'success');
+        await loadTodayReminders(patient.curp);
+      } catch (error) {
+        window.MediAlertMain.showToast(error.message, 'error');
+        button.disabled = false;
+      }
+    });
+  }
+
+  function renderReminderStats(stats) {
+    setText('today-adherence', String(stats.sent_today || 0));
+    setText('today-meds', String(stats.active_medications || 0));
+    setText('next-dose', stats.next_reminder ? formatDateTime(stats.next_reminder) : '--:--');
+    const count = document.getElementById('today-takes-count');
+    if (count) {
+      count.textContent = `(${stats.active_medications || 0})`;
+    }
+  }
+
+  function renderReminderList(reminders, curp) {
+    const reminderList = document.getElementById('today-medications-list');
+    if (!reminderList) {
+      return;
+    }
+
+    reminderList.innerHTML = reminders.length
+      ? reminders.map((reminder) => `
+          <article class="med-card">
+            <div>
+              <strong>${escapeHtml(reminder.emoji || '💊')} ${escapeHtml(reminder.name)}</strong>
+              <div class="med-meta">${reminder.dose_mg} mg · cada ${reminder.interval_hours || 24} horas</div>
+              <p>Próximo aviso: ${formatDateTime(reminder.scheduled_at)}</p>
+              <p>${escapeHtml(reminder.notes || 'Sin indicaciones adicionales')}</p>
+            </div>
+            <div class="med-actions">
+              <button class="btn btn-sm btn-success" data-action="take" data-item-id="${reminder.item_id}">Tomar</button>
+              <button class="btn btn-sm btn-warning" data-action="snooze" data-item-id="${reminder.item_id}">Posponer</button>
+              <button class="btn btn-sm btn-secondary" data-action="skip" data-item-id="${reminder.item_id}">Omitir</button>
+            </div>
+          </article>
+        `).join('')
+      : emptyState('Aún no hay avisos programados.');
+  }
+
+  function renderReminderHistory(history) {
+    const historyList = document.getElementById('taken-history');
+    if (!historyList) {
+      return;
+    }
+
+    const count = document.getElementById('taken-count');
+    if (count) {
+      count.textContent = `(${history.length})`;
+    }
+
+    historyList.innerHTML = history.length
+      ? history.map((item) => `
+          <article class="appointment-card">
+            <div>
+              <strong>${escapeHtml(item.provider || 'scheduler')}</strong>
+              <div class="appointment-meta">${formatDateTime(item.scheduled_for)} · ${escapeHtml(formatNotificationStatus(item.status))}</div>
+              <p>${escapeHtml(item.message_body || 'Recordatorio procesado por el sistema.')}</p>
+            </div>
+            <span class="status-badge ${mapNotificationBadgeClass(item.status)}">${escapeHtml(formatNotificationStatus(item.status))}</span>
+          </article>
+        `).join('')
+      : emptyState('Todavia no hay envios registrados.');
+  }
+
+  function formatNotificationStatus(status) {
+    const labels = {
+      sent: 'Enviado',
+      simulated: 'Simulado',
+      skipped: 'Omitido',
+      failed: 'Error'
+    };
+
+    return labels[status] || status || 'Pendiente';
+  }
+
+  function mapNotificationBadgeClass(status) {
+    const classes = {
+      sent: 'scheduled',
+      simulated: 'approved',
+      skipped: 'pending',
+      failed: 'rejected'
+    };
+
+    return classes[status] || 'pending';
   }
 
   function emptyState(message) {

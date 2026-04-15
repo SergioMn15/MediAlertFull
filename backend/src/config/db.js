@@ -3,6 +3,16 @@ require('dotenv').config();
 
 let pool = null;
 
+function getPoolMax() {
+  const configured = Number(process.env.DB_POOL_MAX);
+  if (Number.isFinite(configured) && configured > 0) {
+    return configured;
+  }
+
+  // Keep the default conservative for small hosted PostgreSQL plans.
+  return 5;
+}
+
 function buildSslConfig() {
   const caFromEnv = process.env.DB_CA_CERT || process.env.DATABASE_CA_CERT;
   const caFromBase64 = process.env.DB_CA_CERT_BASE64 || process.env.DATABASE_CA_CERT_BASE64;
@@ -50,9 +60,11 @@ function buildDatabaseUrlConfig(connectionString) {
     user: decodeURIComponent(parsedUrl.username),
     password: decodeURIComponent(parsedUrl.password),
     ssl: sslConfig,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+    max: getPoolMax(),
+    idleTimeoutMillis: 10000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000
   };
 }
 
@@ -69,11 +81,28 @@ function buildHostConfig() {
     database: process.env.DB_NAME || 'medialert',
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
-    max: 20,
-    idleTimeoutMillis: 30000,
+    max: getPoolMax(),
+    idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
     ssl: process.env.DB_SSL === 'true' ? buildSslConfig() : false
   };
+}
+
+function createPool(config) {
+  const newPool = new Pool(config);
+
+  newPool.on('connect', () => {
+    console.log('Conectado a PostgreSQL');
+  });
+
+  newPool.on('error', (err) => {
+    console.error('Error en PostgreSQL:', err.message);
+    pool = null;
+  });
+
+  return newPool;
 }
 
 function getPool() {
@@ -81,22 +110,14 @@ function getPool() {
 
   if (process.env.DATABASE_URL) {
     console.log('Usando DATABASE_URL completa (Aiven/Render)');
-    pool = new Pool(buildDatabaseUrlConfig(process.env.DATABASE_URL));
+    pool = createPool(buildDatabaseUrlConfig(process.env.DATABASE_URL));
   } else if (process.env.DB_HOST) {
     console.log('Usando config individual local');
-    pool = new Pool(buildHostConfig());
+    pool = createPool(buildHostConfig());
   } else {
     console.log('No hay configuracion de PostgreSQL - modo demo');
     return null;
   }
-
-  pool.on('connect', () => {
-    console.log('Conectado a PostgreSQL');
-  });
-
-  pool.on('error', (err) => {
-    console.error('Error en PostgreSQL:', err.message);
-  });
 
   return pool;
 }
@@ -106,7 +127,14 @@ async function query(text, params) {
   if (!currentPool) {
     throw new Error('No hay conexion a PostgreSQL');
   }
-  return currentPool.query(text, params);
+  try {
+    return await currentPool.query(text, params);
+  } catch (err) {
+    if (err.message && err.message.includes('Connection terminated')) {
+      pool = null;
+    }
+    throw err;
+  }
 }
 
 module.exports = {

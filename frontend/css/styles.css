@@ -196,6 +196,18 @@ textarea {
   box-shadow: 0 14px 28px rgba(181, 90, 68, 0.22);
 }
 
+.btn-success {
+  color: #fff;
+  background: linear-gradient(135deg, #179b67, #24b87d);
+  box-shadow: 0 14px 28px rgba(23, 155, 103, 0.22);
+}
+
+.btn-warning {
+  color: #fff;
+  background: linear-gradient(135deg, #d78633, #f08d49);
+  box-shadow: 0 14px 28px rgba(240, 141, 73, 0.24);
+}
+
 .btn-block {
   width: 100%;
 }
@@ -207,6 +219,14 @@ textarea {
 .btn-small {
   padding: 0.65rem 0.9rem;
   font-size: 0.92rem;
+}
+
+.btn-large {
+  min-width: 180px;
+}
+
+.flex-center {
+  justify-content: center;
 }
 
 .hero-grid {
@@ -594,6 +614,23 @@ textarea {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  margin-top: 0.75rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(18, 124, 104, 0.12);
+}
+
+.progress-bar div {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--primary), #23a089);
+  transition: width 0.25s ease;
+}
+
 .stat-card span {
   color: var(--muted);
 }
@@ -779,6 +816,37 @@ textarea {
 .modal-form {
   display: grid;
   gap: 1rem;
+}
+
+.medication-preview {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 18px;
+  background: rgba(18, 124, 104, 0.06);
+  border: 1px solid rgba(18, 124, 104, 0.08);
+}
+
+.medication-icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.medication-info {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.action-buttons {
+  justify-content: center;
 }
 
 @media (max-width: 1024px) {

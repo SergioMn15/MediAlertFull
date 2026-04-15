@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Recordatorios Automaticos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="patient-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Recordatorios Automaticos</h2>
+            <p>Seguimiento de avisos programados por correo o WhatsApp segun tu receta.</p>
+          </div>
+        </div>
+
+        <section>
+          <div id="adherence-stats" class="stats-grid">
+            <article class="stat-card">
+              <span>Recordatorios enviados hoy</span>
+              <strong id="today-adherence">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Medicamentos activos</span>
+              <strong id="today-meds">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Proximo aviso</span>
+              <strong id="next-dose">--:--</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="dashboard-grid">
+          <div class="stack">
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Proximos avisos <span id="today-takes-count">(0)</span></h2>
+                  <p>Horarios calculados automaticamente a partir de la primera toma y el intervalo en horas.</p>
+                </div>
+              </div>
+              <div id="today-medications-list" class="medication-list">
+                <div class="empty-state">Aun no hay avisos programados.</div>
+              </div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Historial de envios <span id="taken-count">(0)</span></h2>
+                  <p>Ultimos recordatorios procesados por el sistema.</p>
+                </div>
+              </div>
+              <div id="taken-history" class="appointment-list">
+                <div class="empty-state">Todavia no hay envios registrados.</div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/patient.js"></script>
+</body>
+</html>

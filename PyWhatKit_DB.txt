@@ -1,0 +1,20 @@
+Date: 15/4/2026
+Time: 13:4
+Phone Number: +5213121234567
+Message: Hola undefined. Es momento de tomar Ibuprofeno 500mg undefined mg. Horario: 15-abr, 01:03 p.m.. Indicaciones: Seguir la receta medica.
+--------------------
+Date: 15/4/2026
+Time: 14:55
+Phone Number: +523141479473
+Message: Hola undefined. Es momento de tomar Ibuprofeno 500mg undefined mg. Horario: 15-abr, 02:55 p.m.. Indicaciones: Seguir la receta medica.
+--------------------
+Date: 15/4/2026
+Time: 15:3
+Phone Number: +523141479473
+Message: Hola Paciente de prueba. Es momento de tomar Ibuprofeno 500 mg. Horario: 15-abr, 03:02 p.m.. Indicaciones: Seguir la receta medica.
+--------------------
+Date: 15/4/2026
+Time: 15:13
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 50 mg. Horario: 15-abr, 03:08 p.m.. Indicaciones: Prueba de notificaciones
+--------------------
