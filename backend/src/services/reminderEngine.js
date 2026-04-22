@@ -77,12 +77,18 @@ function getNextReminderAt(item, prescriptionIssuedAt, now = new Date()) {
 }
 
 function buildUpcomingReminders(activePrescription, now = new Date(), limit = 6) {
-  if (!activePrescription?.items?.length) {
+if (!activePrescription?.items?.length) {
     return [];
   }
 
+  // Filtrar por estatus de receta Y items no pausados
+  if (activePrescription.status !== 'active') {
+    return [];
+  }
+  const activeItems = activePrescription.items.filter(item => !(item.notifications_paused ?? false));
+
   const reminders = [];
-  activePrescription.items.forEach((item) => {
+  activeItems.forEach((item) => {
     const intervalMs = resolveIntervalHours(item) * 60 * 60 * 1000;
     let candidate = getNextReminderAt(item, activePrescription.issued_at, now);
     const windowEnd = candidate

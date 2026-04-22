@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Mis Recetas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="patient-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Mis Recetas Médicas</h2>
+            <p>Historial completo de prescripciones. Contacta a tu doctor si necesitas editar alguna.</p>
+          </div>
+          <div class="content-actions">
+            <input type="text" id="recipe-search" placeholder="Buscar por fecha o diagnóstico...">
+            <select id="recipe-status-filter">
+              <option value="">Todos los estados</option>
+              <option value="active">Activas</option>
+              <option value="completed">Completadas</option>
+            </select>
+          </div>
+        </div>
+
+        <section class="stats-grid">
+          <article class="stat-card">
+            <span>Recetas totales</span>
+            <strong id="total-recipes-stat">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Activas</span>
+            <strong id="active-recipes-stat">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Medicamentos activos</span>
+            <strong id="active-meds-stat">0</strong>
+          </article>
+        </section>
+
+        <div id="recipe-list-container">
+          <div class="loading">Cargando tus recetas...</div>
+        </div>
+
+        <!-- Detalle receta modal -->
+        <div id="recipe-detail-modal" class="modal" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 id="recipe-detail-title">Detalle Receta</h3>
+              <button class="close-modal">&times;</button>
+            </div>
+            <div id="recipe-detail-body">
+              <!-- Contenido dinámico -->
+            </div>
+            <div class="modal-actions">
+              <button id="download-recipe-pdf" class="btn btn-primary">
+                <i class="fa-solid fa-file-pdf"></i> Descargar PDF
+              </button>
+              <button class="btn btn-outline" onclick="window.print()">
+                <i class="fa-solid fa-print"></i> Imprimir
+              </button>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/patient.js"></script>
+</body>
+</html>
+

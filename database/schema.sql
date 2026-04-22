@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS prescriptions (
     diagnosis TEXT,
     general_instructions TEXT,
     status VARCHAR(20) DEFAULT 'active',
-    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    deleted_at TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS prescription_items (
@@ -47,7 +49,8 @@ CREATE TABLE IF NOT EXISTS prescription_items (
     duration_days INTEGER,
     notes TEXT,
     emoji VARCHAR(10) DEFAULT '💊',
-    interval_hours INTEGER DEFAULT 24
+    interval_hours INTEGER DEFAULT 24,
+    notifications_paused BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS medications (

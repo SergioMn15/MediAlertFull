@@ -274,6 +274,16 @@ async function ensureDatabaseSchema() {
   `);
 
   await db.query(`
+    ALTER TABLE prescriptions
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await db.query(`
+    ALTER TABLE prescriptions
+    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP
+  `);
+
+  await db.query(`
     CREATE TABLE IF NOT EXISTS prescription_items (
       id SERIAL PRIMARY KEY,
       prescription_id INTEGER REFERENCES prescriptions(id) ON DELETE CASCADE,

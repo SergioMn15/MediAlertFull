@@ -3,7 +3,7 @@
   let selectedPrescriptionId = null;
   let currentReminder = null;
 
-  async function initPatientPage() {
+async function initPatientPage() {
     const app = window.MediAlertMain;
     if (!window.location.pathname.includes('/patient/')) {
       return;
@@ -32,10 +32,178 @@
       bindRecipeHistory();
       bindRecipePrint();
       bindReminderActions(patient);
+      bindRecetasPage(); // Nueva logica /recetas.html
+      bindRecipeRequestForm(); // Nueva /recipe.html solo request
       await loadTodayReminders(patient.curp);
     } catch (error) {
       app.showToast(error.message, 'error');
     }
+  }
+
+  function bindRecetasPage() {
+    if (!window.location.pathname.includes('recetas.html')) return;
+
+    const container = document.getElementById('recipe-list-container');
+    const stats = {
+      total: document.getElementById('total-recipes-stat'),
+      active: document.getElementById('active-recipes-stat'),
+      meds: document.getElementById('active-meds-stat'),
+    };
+    const searchInput = document.getElementById('recipe-search');
+    const statusFilter = document.getElementById('recipe-status-filter');
+    const detailModal = document.getElementById('recipe-detail-modal');
+    const modalTitle = document.getElementById('recipe-detail-title');
+    const modalBody = document.getElementById('recipe-detail-body');
+    const closeModalBtn = document.querySelector('#recipe-detail-modal .close-modal');
+
+    if (!container) return;
+
+    async function loadRecetas(search = '', status = '') {
+      container.innerHTML = '<div class="loading">Cargando recetas...</div>';
+      try {
+        const prescriptions = await window.MediAlertAPI.getPatientPrescriptions(currentPatient.curp);
+        renderRecetasList(prescriptions.prescriptions.filter(p => !p.deleted_at), search, status);
+        updateRecetasStats(prescriptions.prescriptions);
+      } catch (error) {
+        container.innerHTML = `<div class="empty-state">${error.message || 'No se pudieron cargar las recetas'}</div>`;
+      }
+    }
+
+    function renderRecetasList(recetas, search, status) {
+      let filtered = recetas.slice();
+      if (search) {
+        filtered = filtered.filter(r => 
+          r.id.toString().includes(search) || 
+          (r.diagnosis || '').toLowerCase().includes(search.toLowerCase())
+        );
+      }
+      if (status) {
+        filtered = filtered.filter(r => r.status === status);
+      }
+
+      container.innerHTML = filtered.length
+        ? filtered.map(recipe => `
+            <article class="recipe-card" data-recipe-id="${recipe.id}">
+              <div class="content-header">
+                <div>
+                  <strong>Receta #${recipe.id}</strong>
+                  <div class="recipe-meta">${formatDateTime(recipe.issued_at)}</div>
+                  ${recipe.doctor_name ? `<p>Doctor: ${escapeHtml(recipe.doctor_name)}</p>` : ''}
+                </div>
+                <span class="status-badge ${recipe.status === 'active' ? 'scheduled' : 'pending'}">
+                  ${recipe.status === 'active' ? 'Activa' : recipe.status.charAt(0).toUpperCase() + recipe.status.slice(1)}
+                </span>
+              </div>
+              <div class="recipe-body">
+                ${recipe.diagnosis ? `<p><strong>Diagnóstico:</strong> ${escapeHtml(recipe.diagnosis)}</p>` : ''}
+                ${recipe.general_instructions ? `<p><strong>Indicaciones:</strong> ${escapeHtml(recipe.general_instructions)}</p>` : ''}
+                <p>${recipe.items?.length || 0} medicamentos</p>
+              </div>
+              <button class="btn btn-primary" onclick="openRecipeDetail(${recipe.id})">
+                Ver detalle
+              </button>
+            </article>
+          `).join('')
+        : '<div class="empty-state">No hay recetas que coincidan con tu busqueda.</div>';
+    }
+
+    function updateRecetasStats(recetas) {
+      if (stats.total) stats.total.textContent = recetas.length;
+      if (stats.active) stats.active.textContent = recetas.filter(r => r.status === 'active').length;
+      const activeMeds = recetas.filter(r => r.status === 'active').reduce((sum, r) => sum + (r.items?.length || 0), 0);
+      if (stats.meds) stats.meds.textContent = activeMeds;
+    }
+
+    function bindSearchFilter() {
+      let timeout;
+      searchInput?.addEventListener('input', e => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => loadRecetas(e.target.value, statusFilter?.value), 300);
+      });
+      statusFilter?.addEventListener('change', e => loadRecetas(searchInput?.value || '', e.target.value));
+    }
+
+    bindSearchFilter();
+    loadRecetas();
+
+    // Modal detail
+    window.openRecipeDetail = async (recipeId) => {
+      try {
+        const response = await window.MediAlertAPI.getPatientData(currentPatient.curp);
+        const recipe = response.patient.prescriptions_history.find(r => r.id == recipeId);
+        if (!recipe) throw new Error('Receta no encontrada');
+        
+        modalTitle.textContent = `Receta #${recipe.id}`;
+        modalBody.innerHTML = `
+          <div class="recipe-detail-header">
+            <div class="recipe-doctor-info">
+              <strong>${escapeHtml(recipe.doctor_name || 'Doctor')}</strong>
+              <p>${formatDateTime(recipe.issued_at)}</p>
+              <span class="status-badge ${recipe.status === 'active' ? 'scheduled' : 'pending'}">${recipe.status}</span>
+            </div>
+          </div>
+          ${recipe.diagnosis ? `<p><strong>Diagnóstico:</strong> ${escapeHtml(recipe.diagnosis)}</p>` : ''}
+          ${recipe.general_instructions ? `<p><strong>Indicaciones:</strong> ${escapeHtml(recipe.general_instructions)}</p>` : ''}
+          <div class="medications-grid">
+            ${recipe.items?.map(item => `
+              <article class="med-card">
+                <div>
+                  <strong>${escapeHtml(item.emoji || '💊')} ${escapeHtml(item.name)}</strong>
+                  <div class="med-meta">${item.dose_mg}mg · ${formatTime(item.time)}</div>
+                  <p>${escapeHtml(item.notes || 'Sin notas')}</p>
+                  ${item.notifications_paused ? '<span class="status-badge paused">Notificaciones pausadas</span>' : ''}
+                </div>
+              </article>
+            `).join('') || '<div class="empty-state">Sin medicamentos en esta receta</div>'}
+          </div>
+        `;
+        detailModal.style.display = 'block';
+      } catch (error) {
+        window.MediAlertMain.showToast(error.message, 'error');
+      }
+    };
+
+    closeModalBtn?.addEventListener('click', () => detailModal.style.display = 'none');
+    detailModal.addEventListener('click', e => {
+      if (e.target === detailModal) detailModal.style.display = 'none';
+    });
+
+    document.getElementById('download-recipe-pdf')?.addEventListener('click', () => {
+      window.MediAlertMain.showToast('Descarga PDF próximamente disponible', 'info');
+    });
+  }
+
+  function bindRecipeRequestForm() {
+    if (!window.location.pathname.includes('recipe.html')) return;
+
+    const form = document.getElementById('recipe-request-form') || document.querySelector('form');
+    if (!form || form.dataset.bound === 'true') return;
+
+    form.dataset.bound = 'true';
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const symptoms = document.getElementById('symptoms-input')?.value.trim() || '';
+      const notes = document.getElementById('notes-input')?.value.trim() || '';
+      const result = document.getElementById('recipe-request-result');
+
+      if (!symptoms && !notes) {
+        if (result) result.textContent = 'Describe tus síntomas o el motivo de la nueva receta.';
+        return;
+      }
+
+      try {
+        await window.MediAlertAPI.requestNewPrescription(currentPatient.curp, { symptoms, notes });
+        if (result) {
+          result.textContent = 'Solicitud enviada al doctor. Te notificaremos pronto.';
+          result.className = 'form-message success';
+        }
+        window.MediAlertMain.showToast('Solicitud de receta enviada', 'success');
+        form.reset();
+      } catch (error) {
+        if (result) result.textContent = error.message;
+        window.MediAlertMain.showToast(error.message, 'error');
+      }
+    });
   }
 
   function renderSidebar(patient) {
@@ -204,11 +372,16 @@
       ? items.map((medication) => `
           <article class="med-card">
             <div>
-              <strong>${medication.emoji || '💊'} ${escapeHtml(medication.name)}</strong>
+              <strong>${escapeHtml(medication.name)}</strong>
               <div class="med-meta">${medication.dose_mg} mg · ${escapeHtml(medication.frequency || 'Frecuencia por definir')} · ${formatTime(medication.time)}</div>
               <p>${escapeHtml(medication.notes || 'Sin observaciones')}</p>
             </div>
-            <span class="status-badge scheduled">${medication.duration_days ? `${medication.duration_days} dias` : 'Activa'}</span>
+            <div class="med-actions">
+              <button class="btn btn-sm ${medication.notifications_paused ? 'btn-success' : 'btn-danger'}" data-action="pause" data-item-id="${medication.id}" data-prescription-id="${selectedPrescriptionId}">
+                ${medication.notifications_paused ? 'Activar' : 'Pausar'} notifs
+              </button>
+            </div>
+            <span class="status-badge ${medication.notifications_paused ? 'paused' : 'scheduled'}">${medication.notifications_paused ? 'Pausado' : (medication.duration_days ? `${medication.duration_days} dias` : 'Activa')}</span>
           </article>
         `).join('')
       : emptyState('Esta receta no tiene medicamentos capturados.');
@@ -316,11 +489,17 @@
       const action = button.dataset.action;
       const itemId = Number(button.dataset.itemId);
       button.disabled = true;
+      const wasPaused = button.textContent.includes('Activar');
 
       try {
-        await window.MediAlertAPI.recordMedicationTake(patient.curp, itemId, action);
-        const labels = { take: 'Toma registrada', skip: 'Dosis omitida', snooze: 'Recordatorio pospuesto 30 min' };
-        window.MediAlertMain.showToast(labels[action] || 'Accion registrada', 'success');
+        if (action === 'pause') {
+          await window.MediAlertAPI.pauseMedication(patient.curp, itemId);
+          window.MediAlertMain.showToast(wasPaused ? 'Notificaciones activadas' : 'Notificaciones pausadas', 'success');
+        } else {
+          await window.MediAlertAPI.recordMedicationTake(patient.curp, itemId, action);
+          const labels = { take: 'Toma registrada', skip: 'Dosis omitida', snooze: 'Recordatorio pospuesto 30 min' };
+          window.MediAlertMain.showToast(labels[action] || 'Accion registrada', 'success');
+        }
         await loadTodayReminders(patient.curp);
       } catch (error) {
         window.MediAlertMain.showToast(error.message, 'error');
@@ -358,6 +537,9 @@
               <button class="btn btn-sm btn-success" data-action="take" data-item-id="${reminder.item_id}">Tomar</button>
               <button class="btn btn-sm btn-warning" data-action="snooze" data-item-id="${reminder.item_id}">Posponer</button>
               <button class="btn btn-sm btn-secondary" data-action="skip" data-item-id="${reminder.item_id}">Omitir</button>
+              <button class="btn btn-sm ${reminder.notifications_paused ? 'btn-success' : 'btn-danger'}" data-action="pause" data-item-id="${reminder.item_id}">
+                ${reminder.notifications_paused ? 'Activar' : 'Pausar'} notifs ⏸️
+              </button>
             </div>
           </article>
         `).join('')
@@ -472,6 +654,39 @@
 
     document.addEventListener('medialert:ready', initPatientPage, { once: true });
   }
+
+  // Global pause listener para recipe items
+  document.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-action="pause"]');
+    if (!button || !currentPatient) return;
+
+    const itemId = Number(button.dataset.itemId);
+    const prescriptionId = Number(button.dataset.prescriptionId || selectedPrescriptionId);
+    const curp = currentPatient.curp;
+    button.disabled = true;
+    const wasPaused = button.textContent.includes('Activar');
+
+    try {
+      if (prescriptionId) {
+        await window.MediAlertAPI.pausePrescription(curp, prescriptionId);
+        window.MediAlertMain.showToast(wasPaused ? 'Receta activada' : 'Receta pausada', 'success');
+      } else {
+        await window.MediAlertAPI.pauseMedication(curp, itemId);
+        window.MediAlertMain.showToast(wasPaused ? 'Notificaciones activadas' : 'Notificaciones pausadas', 'success');
+      }
+      
+      // Recargar data
+      const response = await window.MediAlertAPI.getPatientData(curp);
+      currentPatient = response.patient;
+      renderRecipeHistory(currentPatient);
+      renderSelectedRecipe(currentPatient);
+      await loadTodayReminders(curp);
+    } catch (error) {
+      window.MediAlertMain.showToast(error.message, 'error');
+    } finally {
+      button.disabled = false;
+    }
+  });
 
   document.addEventListener('DOMContentLoaded', bootstrapPatientPage);
 })();

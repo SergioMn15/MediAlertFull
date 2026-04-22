@@ -141,15 +141,71 @@ window.MediAlertAPI = {
     });
   },
 
-  updateClinicalProfile(curp, payload) {
-    return request(`${API_BASE}/patients/${curp}/clinical-profile`, {
-      method: 'PUT',
-      headers: authHeaders(),
-      body: JSON.stringify(payload)
+  pauseTogglePrescription(prescriptionId) {
+    return request(`${API_BASE}/doctors/prescriptions/${prescriptionId}/pause-toggle`, {
+      method: 'POST',
+      headers: authHeaders()
     });
   },
 
-  healthCheck() {
-    return request(`${API_BASE}/health`);
+  pauseToggleMedication(itemId) {
+    return request(`${API_BASE}/doctors/prescriptions/items/${itemId}/pause-toggle`, {
+      method: 'POST',
+      headers: authHeaders()
+    });
+  },
+
+  getPausedPrescriptions(curp) {
+    return request(`${API_BASE}/patients/${curp}/prescriptions/paused`, {
+      headers: authHeaders(false)
+    });
+  },
+
+  // Nuevas APIs para recetas
+  getDoctorPrescriptions(doctorId, params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`${API_BASE}/doctors/${doctorId}/prescriptions?${query}`, {
+      headers: authHeaders(false)
+    });
+  },
+
+  deletePrescription(prescriptionId) {
+    return request(`${API_BASE}/doctors/prescriptions/${prescriptionId}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+  },
+
+  updatePrescription(prescriptionId, data) {
+    return request(`${API_BASE}/doctors/prescriptions/${prescriptionId}`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(data)
+    });
+  },
+
+  approvePrescriptionRequest(prescriptionId, data) {
+    return request(`${API_BASE}/doctors/prescriptions/${prescriptionId}/approve-request`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data)
+    });
+  },
+
+  getPatientPrescriptions(curp) {
+    return request(`${API_BASE}/patients/${curp}/prescriptions`, {
+      headers: authHeaders(false)
+    });
+  },
+
+  requestNewPrescription(curp, data) {
+    return request(`${API_BASE}/patients/${curp}/prescriptions/request`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify(data)
+    });
   }
 };
+
+
+

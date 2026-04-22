@@ -6,6 +6,29 @@ const { buildUpcomingReminders } = require('../services/reminderEngine');
 
 const router = express.Router();
 
+// DemoData support for pause (agregar despues de getDemoData existente)
+function togglePrescriptionStatusFromDemo(demo, patientId, prescriptionId) {
+  const prescriptions = demo.prescriptions[patientId] || [];
+  const prescription = prescriptions.find(p => p.id == prescriptionId);
+  if (!prescription) throw new Error('Receta no encontrada');
+  
+  prescription.status = prescription.status === 'paused' ? 'active' : 'paused';
+  return { success: true, prescription_id: prescriptionId, status: prescription.status };
+}
+
+function toggleItemPauseFromDemo(demo, patientId, itemId) {
+  const prescriptions = demo.prescriptions[patientId] || [];
+  let targetItem = null;
+  for (const pres of prescriptions) {
+    targetItem = pres.items?.find(i => i.id == itemId);
+    if (targetItem) break;
+  }
+  if (!targetItem) throw new Error('Item no encontrado');
+  
+  targetItem.notifications_paused = !(targetItem.notifications_paused ?? false);
+  return { success: true, item_id: itemId, notifications_paused: targetItem.notifications_paused };
+}
+
 function getDemoData(req) {
   return req.app.get('demoData') || {
     doctors: {},
@@ -73,6 +96,7 @@ function mapPrescriptionItemToMedication(item, prescription, doctorName = 'Docto
     time: item.time,
     duration_days: item.duration_days || null,
     notes: item.notes || '',
+    notifications_paused: item.notifications_paused ?? false,
     emoji: item.emoji || '💊',
     prescribed_by: doctorName,
     prescribed_at: prescription.issued_at
@@ -927,6 +951,155 @@ router.get('/:curp/reminders/today', verifyToken, async (req, res) => {
   }
 });
 
+
+// GET endpoint para listar items pausados con stats
+router.get('/:curp/prescriptions/paused', verifyToken, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    let patient;
+    let pausedItems = [];
+    let stats = {};
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+      patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) return;
+
+      // Items pausados de recetas activas
+      const pausedResult = await query(`
+        SELECT pi.*, p.diagnosis, p.issued_at, d.name as doctor_name
+        FROM prescription_items pi 
+        JOIN prescriptions p ON p.id = pi.prescription_id 
+        LEFT JOIN doctors d ON d.id = p.doctor_id
+        WHERE p.patient_id = $1 
+        AND p.status = 'active' 
+        AND pi.notifications_paused = true
+        ORDER BY pi.time ASC
+      `, [patient.id]);
+
+      const totalActiveResult = await query(`
+        SELECT COUNT(*)::int as total_active 
+        FROM prescription_items pi 
+        JOIN prescriptions p ON p.id = pi.prescription_id 
+        WHERE p.patient_id = $1 AND p.status = 'active'
+      `, [patient.id]);
+
+      pausedItems = pausedResult.rows;
+      stats = {
+        paused_count: pausedItems.length,
+        total_active: totalActiveResult.rows[0].total_active,
+        paused_percent: totalActiveResult.rows[0].total_active > 0 ? 
+          Math.round((pausedItems.length / totalActiveResult.rows[0].total_active) * 100) : 0
+      };
+    } else {
+      patient = Object.values(demo.patients).find(p => normalizeCurp(p.curp) === normalizeCurp(curp));
+      if (!patient || !ensurePatientAccess(req, res, patient)) return;
+
+      let allPausedItems = [];
+      Object.values(demo.prescriptions[patient.id] || {}).forEach(pres => {
+        if (pres.status === 'active') {
+          (pres.items || []).forEach(item => {
+            if (item.notifications_paused === true) {
+              allPausedItems.push({
+                ...item,
+                diagnosis: pres.diagnosis,
+                issued_at: pres.issued_at,
+                doctor_name: 'Doctor Demo'
+              });
+            }
+          });
+        }
+      });
+
+      const totalActive = allPausedItems.reduce((sum, item) => {
+        const pres = Object.values(demo.prescriptions[patient.id] || {}).find(p => 
+          p.status === 'active' && p.items.some(i => i.id === item.id)
+        );
+        return sum + (pres?.items?.length || 0);
+      }, 0);
+
+      pausedItems = allPausedItems;
+      stats = {
+        paused_count: pausedItems.length,
+        total_active: totalActive,
+        paused_percent: totalActive > 0 ? Math.round((pausedItems.length / totalActive) * 100) : 0
+      };
+    }
+
+    return res.json({
+      success: true,
+      paused_items: pausedItems,
+      stats
+    });
+  } catch (error) {
+    console.error('Error listando pausados:', error);
+    return res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+
+async function toggleItemPauseFromDb(curp, itemId, userId) {
+  const { query } = require('../config/db');
+  const itemResult = await query(
+    `SELECT pi.notifications_paused, p.doctor_id
+     FROM prescription_items pi
+     JOIN prescriptions pr ON pr.id = pi.prescription_id
+     JOIN patients p ON p.id = pr.patient_id
+     WHERE pi.id = $1 AND UPPER(p.curp) = UPPER($2)`,
+    [itemId, curp]
+  );
+  if (itemResult.rows.length === 0) {
+    throw new Error('Medicamento no encontrado');
+  }
+
+  const currentPaused = itemResult.rows[0].notifications_paused ?? false;
+  const newPaused = !currentPaused;
+
+  await query(
+    'UPDATE prescription_items SET notifications_paused = $1 WHERE id = $2',
+    [newPaused, itemId]
+  );
+
+  // Registrar en status_logs
+  await query(
+    'INSERT INTO status_logs (entity_type, entity_id, old_status, new_status, changed_by) VALUES ($1, $2, $3, $4, $5)',
+    ['item', itemId, currentPaused ? 'paused' : 'active', newPaused ? 'paused' : 'active', userId]
+  );
+
+  return { success: true, item_id: itemId, notifications_paused: newPaused };
+}
+
+router.put('/:curp/prescriptions/:prescriptionId/pause', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { curp, prescriptionId } = req.params;
+    const result = await togglePrescriptionStatusFromDb(curp, prescriptionId, req.user.id);
+    res.json({ success: true, message: `Receta ${result.status === 'paused' ? 'pausada' : 'activada'}`, ...result });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+router.patch('/:curp/prescription-items/:itemId/pause', verifyToken, async (req, res) => {
+  try {
+    const { curp, itemId } = req.params;
+    // Patient puede pausar sus propios items
+    const result = await toggleItemPauseFromDb(curp, itemId, req.user.id);
+    res.json({ success: true, message: `Notificaciones ${result.notifications_paused ? 'pausadas' : 'activadas'}`, ...result });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 router.post('/test-sms', async (req, res) => {
   try {
     const { phone } = req.body;
@@ -1144,6 +1317,114 @@ router.post('/:curp/medication-takes', verifyToken, async (req, res) => {
   }
 });
 
+router.get('/:curp/prescriptions', verifyToken, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    let patient;
+    let prescriptions = [];
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+      patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) return;
+
+      // Listar prescriptions no-deleted, ordenadas por fecha DESC
+      prescriptions = await getPrescriptionHistoryFromDb(patient.id).filter(p => !p.deleted_at);
+    } else {
+      patient = Object.values(demo.patients).find(item => normalizeCurp(item.curp) === normalizeCurp(curp));
+      if (!patient || !ensurePatientAccess(req, res, patient)) return;
+      prescriptions = getPrescriptionHistoryFromDemo(demo, patient.id).filter(p => p.status !== 'deleted');
+    }
+
+    return res.json({
+      success: true,
+      prescriptions: prescriptions.slice(0, 20) // Limit 20 recientes
+    });
+  } catch (error) {
+    console.error('Error listando prescriptions paciente:', error);
+    return res.status(500).json({ error: 'Error interno' });
+  }
+});
+
+router.post('/:curp/prescriptions/request', verifyToken, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const { symptoms = '', notes = '' } = req.body;
+
+    if (req.user.role !== 'patient' || normalizeCurp(req.user.curp) !== normalizeCurp(curp)) {
+      return res.status(403).json({ error: 'Solo pacientes pueden solicitar receta' });
+    }
+
+    if (!symptoms && !notes) {
+      return res.status(400).json({ error: 'Describe síntomas o motivo para nueva receta' });
+    }
+
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+    let patient;
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+      patient = patientResult.rows[0];
+
+      const result = await query(
+        `INSERT INTO prescriptions (patient_id, diagnosis, general_instructions, status)
+         VALUES ($1, $2, $3, $4) RETURNING id, diagnosis, general_instructions, status, issued_at`,
+        [patient.id, symptoms, notes, 'requested']
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Solicitud de receta enviada al doctor',
+        prescription: result.rows[0]
+      });
+    } else {
+      patient = Object.values(demo.patients).find(item => normalizeCurp(item.curp) === normalizeCurp(curp));
+      if (!patient) return res.status(404).json({ error: 'Paciente no encontrado' });
+
+      if (!demo.prescriptions[patient.id]) demo.prescriptions[patient.id] = [];
+      
+      const newId = Math.max(...demo.prescriptions[patient.id].map(p => p.id), 0) + 1;
+      const requestPres = {
+        id: newId,
+        patient_id: patient.id,
+        diagnosis: symptoms,
+        general_instructions: notes,
+        status: 'requested',
+        issued_at: new Date().toISOString(),
+        items: []
+      };
+      demo.prescriptions[patient.id].unshift(requestPres);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Solicitud de receta enviada al doctor',
+        prescription: requestPres
+      });
+    }
+  } catch (error) {
+    console.error('Error solicitud receta:', error);
+    return res.status(500).json({ error: 'Error interno' });
+  }
+});
+
 router.get('/:curp/reminders/overview', verifyToken, async (req, res) => {
   try {
     const { curp } = req.params;
@@ -1222,4 +1503,3 @@ router.get('/:curp/reminders/overview', verifyToken, async (req, res) => {
 });
 
 module.exports = router;
-

@@ -56,7 +56,8 @@ const requirePatient = (req, res, next) => {
 };
 
 const requireSameDoctor = (req, res, next) => {
-  const requestedDoctorId = Number(req.params.id);
+  const requestedDoctorIdRaw = req.params.id ?? req.params.doctorId;
+  const requestedDoctorId = Number(requestedDoctorIdRaw);
 
   if (!Number.isInteger(requestedDoctorId)) {
     return res.status(400).json({ error: 'Id de doctor invalido' });

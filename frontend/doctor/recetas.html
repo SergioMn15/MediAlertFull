@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Recetas Médicas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="doctor-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Recetas Médicas</h2>
+            <p>Control total: listar, editar, pausar, eliminar. Filtra por paciente/estado.</p>
+          </div>
+          <div class="content-actions">
+            <input type="text" id="search-prescriptions" placeholder="Buscar por paciente o diagnóstico...">
+            <select id="status-filter">
+              <option value="">Todos los estados</option>
+              <option value="active">Activas</option>
+              <option value="requested">Solicitudes</option>
+              <option value="completed">Completadas</option>
+              <option value="deleted">Eliminadas</option>
+            </select>
+          </div>
+        </div>
+
+        <section class="stats-grid">
+          <article class="stat-card">
+            <span>Recetas totales</span>
+            <strong id="total-prescriptions">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Activas</span>
+            <strong id="active-prescriptions">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Pausadas</span>
+            <strong id="paused-prescriptions">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Solicitudes pendientes</span>
+            <strong id="pending-requests">0</strong>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <div class="stack">
+            <div id="prescription-list" class="compact-list-container">
+              <div class="loading">Cargando recetas...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Modal Editar -->
+        <div id="edit-prescription-modal" class="modal" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 id="edit-modal-title">Editar Receta</h3>
+              <button class="close-modal">&times;</button>
+            </div>
+            <form id="edit-prescription-form">
+              <input type="hidden" id="edit-prescription-id">
+              <div class="form-group">
+                <label>Paciente</label>
+                <input type="text" id="edit-patient-name" readonly>
+              </div>
+              <div class="form-group">
+                <label>Diagnóstico</label>
+                <textarea id="edit-diagnosis" rows="2"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Indicaciones generales</label>
+                <textarea id="edit-general-instructions" rows="3"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Medicamentos</label>
+                <div id="edit-medications-list"></div>
+                <button type="button" id="add-edit-medication" class="btn btn-outline btn-small">+ Agregar medicamento</button>
+              </div>
+              <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            </form>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/doctor-dashboard.js"></script>
+</body>
+</html>
+

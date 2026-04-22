@@ -10,7 +10,7 @@
     requests: []
   };
 
-  async function initDoctorPage() {
+async function initDoctorPage() {
     const app = window.MediAlertMain;
     if (!window.location.pathname.includes('/doctor/')) {
       return;
@@ -37,7 +37,162 @@
     bindPrescriptionDraftActions();
     bindPrescriptionForm();
     renderPrescriptionDraft();
+    bindRecetasPage(); // Nueva logica para /recetas.html
     await loadDoctorSummary();
+  }
+
+  function bindRecetasPage() {
+    const path = window.location.pathname;
+    if (!path.includes('recetas.html')) return;
+
+    const listContainer = document.getElementById('prescription-list');
+    const statsContainer = document.querySelector('.stats-grid');
+    const searchInput = document.getElementById('search-prescriptions');
+    const statusFilter = document.getElementById('status-filter');
+    const totalStat = document.getElementById('total-prescriptions');
+    const activeStat = document.getElementById('active-prescriptions');
+    const pausedStat = document.getElementById('paused-prescriptions');
+    const pendingStat = document.getElementById('pending-requests');
+
+    if (!listContainer) return;
+
+    // Bind search/filter
+    const bindFilters = () => {
+      let timeout;
+      searchInput?.addEventListener('input', (e) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => loadDoctorPrescriptions(e.target.value, statusFilter?.value), 300);
+      });
+      statusFilter?.addEventListener('change', (e) => {
+        loadDoctorPrescriptions(searchInput?.value || '', e.target.value);
+      });
+    };
+
+    bindFilters();
+
+    async function loadDoctorPrescriptions(search = '', status = '') {
+      listContainer.innerHTML = '<div class="loading">Cargando recetas...</div>';
+      try {
+        const app = window.MediAlertMain;
+        const response = await window.MediAlertAPI.getDoctorPrescriptions(app.state.user.id, {
+          page: 1,
+          limit: 20,
+          status,
+          search
+        });
+        
+        renderPrescriptionList(response.prescriptions);
+        renderPrescriptionStats(response);
+      } catch (error) {
+        listContainer.innerHTML = `<div class="empty-state">${escapeHtml(error.message || 'No se pudieron cargar las recetas.')}</div>`;
+      }
+    }
+
+    function renderPrescriptionStats(response) {
+      if (totalStat) totalStat.textContent = response.pagination?.total || 0;
+      if (activeStat) activeStat.textContent = response.prescriptions?.filter(p => p.status === 'active').length || 0;
+      if (pendingStat) pendingStat.textContent = response.prescriptions?.filter(p => p.status === 'requested').length || 0;
+      // Paused requiere query aparte o count items paused
+      if (pausedStat) pausedStat.textContent = '0'; // TODO: calcular paused
+    }
+
+    function renderPrescriptionList(prescriptions) {
+      listContainer.innerHTML = prescriptions.length
+        ? prescriptions.map(pres => `
+            <article class="prescription-card" data-prescription-id="${pres.id}">
+              <div>
+                <div class="flex gap-2 items-center">
+                  <strong>Receta #${pres.id}</strong>
+                  <span class="status-badge ${getStatusClass(pres.status)}">${getStatusLabel(pres.status)}</span>
+                </div>
+                <div class="prescription-meta">
+                  Paciente: ${escapeHtml(pres.patient_name)} (${escapeHtml(pres.patient_curp)})
+                </div>
+                <div class="prescription-meta">
+                  ${formatDateTime(pres.issued_at)}
+                </div>
+                ${pres.diagnosis ? `<p>${escapeHtml(pres.diagnosis)}</p>` : ''}
+                <p>${pres.total_items || 0} medicamentos (${pres.active_items || 0} activos)</p>
+              </div>
+              <div class="prescription-actions">
+                ${pres.status !== 'deleted' ? `
+                  <button class="btn btn-outline btn-small" data-action="edit" title="Editar receta">
+                    <i class="fa-solid fa-edit"></i>
+                  </button>
+                  <button class="btn btn-outline btn-small" data-action="pause" title="Pausar notificaciones">
+                    <i class="fa-solid fa-pause"></i>
+                  </button>
+                  <button class="btn btn-danger btn-small" data-action="delete" title="Eliminar">
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                ` : '<span class="text-muted">Eliminada</span>'}
+              </div>
+            </article>
+          `).join('')
+        : '<div class="empty-state">No hay recetas que coincidan con el filtro.</div>';
+
+      // Bind actions
+      listContainer.querySelectorAll('[data-action]').forEach(btn => {
+        btn.addEventListener('click', async e => {
+          const action = btn.dataset.action;
+          const presId = btn.closest('[data-prescription-id]')?.dataset.prescriptionId;
+          if (!presId || !action) return;
+
+          btn.disabled = true;
+          try {
+            if (action === 'pause') {
+              const response = await window.MediAlertAPI.pauseTogglePrescription(presId);
+              window.MediAlertMain.showToast(response.message, response.paused ? 'warning' : 'success');
+            } else if (action === 'delete') {
+              if (confirm('¿Eliminar esta receta permanentemente?')) {
+                await window.MediAlertAPI.deletePrescription(presId);
+                window.MediAlertMain.showToast('Receta eliminada', 'success');
+              }
+            } else if (action === 'edit') {
+              await openEditModal(presId);
+            }
+            await loadDoctorPrescriptions(searchInput?.value || '', statusFilter?.value);
+          } catch (err) {
+            window.MediAlertMain.showToast(err.message, 'error');
+          }
+          btn.disabled = false;
+        });
+      });
+    }
+
+    async function openEditModal(presId) {
+      try {
+        // TODO: Implementar modal edit con PUT /prescriptions/:id
+        window.MediAlertMain.showToast('Edicion no implementada aun (proximamente)', 'info');
+      } catch (err) {
+        console.error('Error abriendo modal edit:', err);
+      }
+    }
+
+    function getStatusClass(status) {
+      const classes = {
+        'active': 'scheduled',
+        'requested': 'pending', 
+        'completed': 'approved',
+        'paused': 'paused',
+        'deleted': 'rejected'
+      };
+      return classes[status] || 'pending';
+    }
+
+    function getStatusLabel(status) {
+      const labels = {
+        'active': 'Activa',
+        'requested': 'Solicitud pendiente',
+        'completed': 'Completada',
+        'paused': 'Pausada',
+        'deleted': 'Eliminada'
+      };
+      return labels[status] || status;
+    }
+
+    // Inicial load
+    loadDoctorPrescriptions();
   }
 
   function restoreDraft() {
@@ -70,7 +225,7 @@
     draftList.innerHTML = prescriptionDraft.map((item, index) => `
       <article class="med-card">
         <div>
-          <strong>${item.emoji || '💊'} ${escapeHtml(item.name)}</strong>
+          <strong>${escapeHtml(item.name)}</strong>
           <div class="med-meta">${item.dose_mg} mg · ${item.frequency || 'Frecuencia por definir'} · ${formatTime(item.time)}</div>
           <p>${item.notes || 'Sin indicaciones adicionales'}</p>
           ${item.duration_days ? `<p>Duracion: ${item.duration_days} dias</p>` : ''}
@@ -107,7 +262,6 @@
     const intervalValue = Number(document.getElementById('medication-interval-input')?.value);
     const durationValue = document.getElementById('medication-duration-input')?.value;
     const time = document.getElementById('medication-time-input')?.value;
-    const emoji = document.getElementById('medication-emoji-input')?.value.trim() || '💊';
     const notes = document.getElementById('medication-notes-input')?.value.trim() || '';
 
     if (!name || !dose_mg || !time || !intervalValue) {
@@ -121,7 +275,6 @@
       interval_hours: intervalValue,
       duration_days: durationValue ? Number(durationValue) : null,
       time,
-      emoji,
       notes
     };
   }
@@ -133,7 +286,6 @@
       'medication-interval-input',
       'medication-duration-input',
       'medication-time-input',
-      'medication-emoji-input',
       'medication-notes-input'
     ].forEach((id) => {
       const element = document.getElementById(id);
@@ -840,18 +992,77 @@
       fillClinicalProfileForm(patient);
 
       if (medicationList) {
+        // Determinar si todos los medicamentos están pausados
+        const allPaused = medications.length > 0 && medications.every(med => med.notifications_paused);
         medicationList.innerHTML = medications.length
-          ? medications.map((medication) => `
-              <article class="med-card">
-                <div>
-                  <strong>${medication.emoji || '💊'} ${escapeHtml(medication.name)}</strong>
-                  <div class="med-meta">${medication.dose_mg} mg · ${escapeHtml(medication.frequency || 'Frecuencia por definir')} · ${formatTime(medication.time)}</div>
-                  <p>${escapeHtml(medication.notes || 'Sin observaciones')}</p>
-                </div>
-                <span class="status-badge scheduled">${medication.duration_days ? `${medication.duration_days} dias` : 'Activa'}</span>
-              </article>
-            `).join('')
+          ? [
+              `<label class="switch-toggle" style="margin-bottom:10px;display:inline-flex;align-items:center;gap:0.5rem;">
+                <input type="checkbox" id="pause-prescription-toggle" ${allPaused ? '' : 'checked'}>
+                <span class="slider"></span>
+                <span>${allPaused ? 'Receta pausada' : 'Receta activa'}</span>
+              </label>`
+            ]
+              .concat(
+                medications.map((medication) => {
+                  const isPaused = medication.notifications_paused ?? false;
+                  return `
+                  <article class="med-card">
+                    <div>
+                      <strong>${escapeHtml(medication.name)}</strong>
+                      <div class="med-meta">${medication.dose_mg} mg · ${escapeHtml(medication.frequency || 'Frecuencia por definir')} · ${formatTime(medication.time)}</div>
+                      <p>${escapeHtml(medication.notes || 'Sin observaciones')}</p>
+                    </div>
+                    <label class="switch-toggle" style="display:inline-flex;align-items:center;gap:0.5rem;">
+                      <input type="checkbox" class="pause-medication-toggle" data-item-id="${medication.id}" ${isPaused ? '' : 'checked'} ${allPaused ? 'disabled' : ''}>
+                      <span class="slider"></span>
+                      <span>${isPaused ? 'Notificaciones pausadas' : 'Notificaciones activas'}</span>
+                    </label>
+                    <span class="status-badge ${isPaused ? 'paused' : 'scheduled'}">
+                      ${isPaused ? 'Pausado' : (medication.duration_days ? `${medication.duration_days} dias` : 'Activo')}
+                    </span>
+                  </article>
+                  `;
+                })
+              )
+              .join('')
           : '<div class="empty-state">Sin medicamentos activos para este paciente.</div>';
+
+        // Bind receta toggle (switch)
+        const pausePrescriptionToggle = document.getElementById('pause-prescription-toggle');
+        if (pausePrescriptionToggle && activePrescription) {
+          pausePrescriptionToggle.addEventListener('change', async () => {
+            pausePrescriptionToggle.disabled = true;
+            try {
+              const result = await window.MediAlertAPI.pauseTogglePrescription(activePrescription.id);
+              window.MediAlertMain.showToast(result.message, result.paused ? 'warning' : 'success');
+              // Recargar todo el estado tras pausar/reanudar receta
+              await loadSelectedPatientPrescription(curp);
+            } catch (err) {
+              window.MediAlertMain.showToast(err.message || 'Error toggle receta', 'error');
+            }
+            pausePrescriptionToggle.disabled = false;
+          });
+        }
+        // Bind items toggle (switch)
+        medicationList.querySelectorAll('.pause-medication-toggle').forEach((toggle) => {
+          toggle.addEventListener('change', async () => {
+            if (allPaused) {
+              toggle.checked = false;
+              return;
+            }
+            const itemId = toggle.getAttribute('data-item-id');
+            toggle.disabled = true;
+            try {
+              const result = await window.MediAlertAPI.pauseToggleMedication(itemId);
+              window.MediAlertMain.showToast(result.message, result.paused ? 'warning' : 'success');
+              // Recargar todo el estado tras pausar/reanudar medicamento individual
+              await loadSelectedPatientPrescription(curp);
+            } catch (err) {
+              window.MediAlertMain.showToast(err.message || 'Error toggle medicamento', 'error');
+            }
+            toggle.disabled = false;
+          });
+        });
       }
 
       if (historyPreview) {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MediAlert - Mi Receta</title>
+  <title>MediAlert - Solicitar Nueva Receta</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,51 +22,39 @@
       <main class="main-content">
         <div class="content-header">
           <div>
-            <h2>Mi receta medica</h2>
-            <p>Consulta tus medicamentos prescritos y exporta una copia rapida.</p>
+            <h2>Solicitar Nueva Receta</h2>
+            <p>Describe tus síntomas actuales o el motivo. Tu doctor revisará y emitirá nueva receta medica.</p>
           </div>
         </div>
 
-        <section class="recipe-card">
-          <div class="content-header">
-            <div>
-              <h2>Historial de recetas</h2>
-              <p>Selecciona una receta para ver su desglose completo.</p>
+        <section class="form-card">
+          <form id="recipe-request-form">
+            <div class="form-group">
+              <label for="symptoms-input">
+                <i class="fa-solid fa-syringe"></i>
+                Síntomas actuales
+              </label>
+              <textarea id="symptoms-input" rows="4" placeholder="Ej: Dolor de cabeza persistente, presion arterial alta, falta de aire al caminar 200 metros..."></textarea>
             </div>
-          </div>
-          <div id="recipe-history-list" class="medication-list"></div>
-        </section>
-
-        <section class="recipe-card">
-          <div class="content-header">
-            <div>
-              <h2>Detalle de receta</h2>
-              <p>Consulta el diagnostico, indicaciones y medicamentos de la receta seleccionada.</p>
+            <div class="form-group">
+              <label for="notes-input">
+                <i class="fa-solid fa-notes-medical"></i>
+                Motivo adicional o notas
+              </label>
+              <textarea id="notes-input" rows="3" placeholder="Ej: Termine medicamento X ayer, necesito reabastecimiento. O cambio de tratamiento."></textarea>
             </div>
-          </div>
-
-          <div class="recipe-header">
-            <div class="recipe-logo">
-              <i class="fa-solid fa-file-prescription"></i>
-            </div>
-            <div>
-              <h3 id="recipe-title">Selecciona una receta</h3>
-              <p id="recipe-doctor">Doctor: --</p>
-              <p id="recipe-date">Fecha de receta: --</p>
-              <p id="recipe-diagnosis">Diagnostico: --</p>
-              <p id="recipe-instructions">Indicaciones: --</p>
-            </div>
-          </div>
-
-          <div id="medication-list" class="medication-list"></div>
-
-          <div class="recipe-actions">
-            <button id="download-pdf" class="btn btn-primary" type="button">
-              <i class="fa-solid fa-file-arrow-down"></i>
-              Descargar o imprimir
+            <div id="recipe-request-result" class="form-message"></div>
+            <button type="submit" class="btn btn-primary btn-large">
+              <i class="fa-solid fa-paper-plane"></i>
+              Enviar solicitud al doctor
             </button>
-          </div>
+          </form>
         </section>
+
+        <div class="info-card">
+          <i class="fa-solid fa-info-circle"></i>
+          <p>Tu doctor recibirá notificación inmediata. Verifica en "Mis Recetas" el estado de aprobación.</p>
+        </div>
       </main>
     </div>
   </div>
