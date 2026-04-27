@@ -93,3 +93,13 @@ Time: 10:42
 Phone Number: +5213141479473
 Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 21 mg. Horario: 22-abr, 10:39 a.m.. Indicaciones: BESOOOOS
 --------------------
+Date: 27/4/2026
+Time: 13:59
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 01:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 14:56
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 02:56 p.m.. Indicaciones: PRUEBAS
+--------------------
