@@ -170,11 +170,270 @@ async function initDoctorPage() {
     }
 
     async function openEditModal(presId) {
+      const modal = document.getElementById('edit-prescription-modal');
+      const form = document.getElementById('edit-prescription-form');
+      const medicationsList = document.getElementById('edit-medications-list');
+
+      if (!modal || !form) return;
+
       try {
-        // TODO: Implementar modal edit con PUT /prescriptions/:id
-        window.MediAlertMain.showToast('Edicion no implementada aun (proximamente)', 'info');
+        const response = await window.MediAlertAPI.getPrescription(presId);
+        const prescription = response.prescription;
+
+        // Guardar valores originales para comparacion al cerrar
+        const originalValues = {
+          diagnosis: prescription.diagnosis || '',
+          generalInstructions: prescription.general_instructions || '',
+          medications: (prescription.items || []).map(item => ({
+            id: item.id,
+            name: item.name || '',
+            dose_mg: item.dose_mg || '',
+            interval_hours: item.interval_hours || 24,
+            time: item.time ? String(item.time).slice(0, 5) : '',
+            duration_days: item.duration_days || '',
+            notes: item.notes || ''
+          }))
+        };
+
+        // Poblar campos basicos
+        document.getElementById('edit-prescription-id').value = prescription.id;
+        document.getElementById('edit-patient-name').value = `${escapeHtml(prescription.patient_name)} (${escapeHtml(prescription.patient_curp)})`;
+        document.getElementById('edit-diagnosis').value = originalValues.diagnosis;
+        document.getElementById('edit-general-instructions').value = originalValues.generalInstructions;
+
+        // Estado local de medicamentos para edicion
+        let editMedications = originalValues.medications.map(item => ({...item}));
+
+        function renderEditMedications() {
+          if (editMedications.length === 0) {
+            medicationsList.innerHTML = '<div class="empty-state">Sin medicamentos. Agrega al menos uno.</div>';
+            return;
+          }
+
+          medicationsList.innerHTML = editMedications.map((med, index) => `
+            <div class="edit-medication-row" data-index="${index}" data-item-id="${med.id || ''}">
+              <div class="edit-medication-header">
+                <span class="edit-medication-title"><i class="fa-solid fa-pills"></i> Medicamento #${index + 1}</span>
+                <button type="button" class="btn btn-danger btn-small remove-edit-medication" data-index="${index}" title="Eliminar medicamento">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+              <div class="edit-medication-grid">
+                <div class="form-group">
+                  <label>Nombre</label>
+                  <input type="text" class="form-control edit-med-name" value="${escapeHtml(med.name)}" placeholder="Ej. Paracetamol" required>
+                </div>
+                <div class="form-group">
+                  <label>Dosis (mg)</label>
+                  <input type="number" class="form-control edit-med-dose" value="${med.dose_mg}" placeholder="500" required>
+                </div>
+                <div class="form-group">
+                  <label>Intervalo (hrs)</label>
+                  <input type="number" class="form-control edit-med-interval" value="${med.interval_hours}" placeholder="8" required>
+                </div>
+                <div class="form-group">
+                  <label>Hora</label>
+                  <input type="time" class="form-control edit-med-time" value="${med.time}" required>
+                </div>
+                <div class="form-group">
+                  <label>Duracion (dias)</label>
+                  <input type="number" class="form-control edit-med-duration" value="${med.duration_days}" placeholder="Opcional">
+                </div>
+              </div>
+              <div class="form-group">
+                <label>Notas</label>
+                <textarea class="form-control edit-med-notes" rows="2" placeholder="Indicaciones adicionales">${escapeHtml(med.notes)}</textarea>
+              </div>
+            </div>
+          `).join('');
+        }
+
+        renderEditMedications();
+
+        // Delegacion de eventos para eliminar medicamentos
+        medicationsList.onclick = (e) => {
+          const btn = e.target.closest('.remove-edit-medication');
+          if (!btn) return;
+          const idx = Number(btn.closest('.edit-medication-row').dataset.index);
+          editMedications.splice(idx, 1);
+          renderEditMedications();
+        };
+
+        // Boton agregar medicamento
+        const addBtn = document.getElementById('add-edit-medication');
+        addBtn.onclick = () => {
+          editMedications.push({
+            id: null,
+            name: '',
+            dose_mg: '',
+            interval_hours: 24,
+            time: '',
+            duration_days: '',
+            notes: ''
+          });
+          renderEditMedications();
+        };
+
+        // Función para obtener los valores actuales del formulario
+        function getCurrentEditValues() {
+          const currentMeds = [];
+          const rows = medicationsList.querySelectorAll('.edit-medication-row');
+          rows.forEach(row => {
+            currentMeds.push({
+              id: row.dataset.itemId || null,
+              name: row.querySelector('.edit-med-name')?.value.trim() || '',
+              dose_mg: Number(row.querySelector('.edit-med-dose')?.value) || 0,
+              interval_hours: Number(row.querySelector('.edit-med-interval')?.value) || 0,
+              time: row.querySelector('.edit-med-time')?.value || '',
+              duration_days: row.querySelector('.edit-med-duration')?.value || '',
+              notes: row.querySelector('.edit-med-notes')?.value.trim() || ''
+            });
+          });
+          return {
+            diagnosis: document.getElementById('edit-diagnosis')?.value.trim() || '',
+            generalInstructions: document.getElementById('edit-general-instructions')?.value.trim() || '',
+            medications: currentMeds
+          };
+        }
+
+        // Función para comparar si hay cambios reales
+        function hasUnsavedChanges() {
+          const current = getCurrentEditValues();
+          
+          // Comparar diagnóstico
+          if (current.diagnosis !== originalValues.diagnosis) return true;
+          
+          // Comparar indicaciones generales
+          if (current.generalInstructions !== originalValues.generalInstructions) return true;
+          
+          // Comparar número de medicamentos
+          if (current.medications.length !== originalValues.medications.length) return true;
+          
+          // Comparar cada medicamento
+          for (let i = 0; i < current.medications.length; i++) {
+            const curr = current.medications[i];
+            const orig = originalValues.medications[i];
+            if (!orig) return true;
+            if (curr.name !== orig.name || 
+                curr.dose_mg !== orig.dose_mg || 
+                curr.interval_hours !== orig.interval_hours ||
+                curr.time !== orig.time || 
+                curr.duration_days !== orig.duration_days || 
+                curr.notes !== orig.notes) {
+              return true;
+            }
+          }
+          
+          return false;
+        }
+
+        // Cerrar modal
+        const closeModal = (force = false) => {
+          // Verificar si hay cambios sin guardar
+          if (!force && hasUnsavedChanges()) {
+            if (!confirm('Confirmas en guardar los cambios?')) {
+              return; // No cerrar si el usuario cancela
+            }
+          }
+          
+          modal.style.display = 'none';
+          form.reset();
+          medicationsList.innerHTML = '';
+          // Limpiar handlers
+          form.onsubmit = null;
+          addBtn.onclick = null;
+          medicationsList.onclick = null;
+          modal.onclick = null;
+        };
+
+        // Botones cerrar - solo con botón explícito
+        const closeButtons = modal.querySelectorAll('.close-modal, .close-modal-btn');
+        closeButtons.forEach(btn => {
+          btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            closeModal(false);
+          };
+        });
+
+        // NO cerrar al hacer click en backdrop - el usuario debe usar los botones
+        // Esto previene cierres accidentales mientras se edita
+        modal.onclick = null;
+
+        // Submit del form
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+
+          const rows = medicationsList.querySelectorAll('.edit-medication-row');
+          const items = [];
+          let hasError = false;
+
+          rows.forEach(row => {
+            const name = row.querySelector('.edit-med-name')?.value.trim();
+            const dose_mg = Number(row.querySelector('.edit-med-dose')?.value);
+            const interval_hours = Number(row.querySelector('.edit-med-interval')?.value);
+            const time = row.querySelector('.edit-med-time')?.value;
+            const duration_days = row.querySelector('.edit-med-duration')?.value;
+            const notes = row.querySelector('.edit-med-notes')?.value.trim() || '';
+            const itemId = row.dataset.itemId || null;
+
+            if (!name || !dose_mg || !time || !interval_hours) {
+              hasError = true;
+              return;
+            }
+
+            items.push({
+              id: itemId,
+              name,
+              dose_mg,
+              frequency: `Cada ${interval_hours} horas`,
+              interval_hours,
+              time,
+              duration_days: duration_days ? Number(duration_days) : null,
+              notes
+            });
+          });
+
+          if (hasError) {
+            window.MediAlertMain.showToast('Completa nombre, dosis, intervalo y hora para todos los medicamentos.', 'error');
+            return;
+          }
+
+          if (items.length === 0) {
+            window.MediAlertMain.showToast('Agrega al menos un medicamento.', 'error');
+            return;
+          }
+
+          // Guardar el CURP del paciente antes de cerrar el modal
+          const patientCurp = prescription.patient_curp;
+
+          try {
+            await window.MediAlertAPI.updatePrescription(presId, {
+              diagnosis: document.getElementById('edit-diagnosis').value.trim(),
+              general_instructions: document.getElementById('edit-general-instructions').value.trim(),
+              items
+            });
+
+            window.MediAlertMain.showToast('Receta actualizada correctamente.', 'success');
+            closeModal();
+            // Forzar recarga de la lista
+            await loadDoctorPrescriptions(searchInput?.value || '', statusFilter?.value);
+            
+            // Actualizar panel de notificaciones si está abierto para este paciente
+            if (currentNotificationPanelCurp === patientCurp) {
+              await openNotificationPanel(patientCurp);
+            }
+          } catch (err) {
+            window.MediAlertMain.showToast(err.message || 'Error al actualizar receta.', 'error');
+          }
+        };
+
+        // Mostrar modal
+        modal.style.display = 'flex';
+
       } catch (err) {
         console.error('Error abriendo modal edit:', err);
+        window.MediAlertMain.showToast('No se pudo cargar la receta para editar.', 'error');
       }
     }
 
@@ -204,6 +463,9 @@ async function initDoctorPage() {
     loadDoctorPrescriptions();
   }
 
+  // Variable para rastrear el panel de notificaciones abierto
+  let currentNotificationPanelCurp = null;
+
   async function openNotificationPanel(curp) {
     const panel = document.getElementById('notification-panel');
     const content = document.getElementById('notification-panel-content');
@@ -212,13 +474,19 @@ async function initDoctorPage() {
 
     if (!panel || !content) return;
 
+    // Guardar el CURP actual del panel
+    currentNotificationPanelCurp = curp;
+
     panel.classList.remove('hidden');
     content.innerHTML = '<div class="loading">Cargando medicamentos...</div>';
     if (meta) meta.textContent = 'Paciente: ' + escapeHtml(curp);
 
     if (closeBtn && !closeBtn.dataset.bound) {
       closeBtn.dataset.bound = 'true';
-      closeBtn.addEventListener('click', () => panel.classList.add('hidden'));
+      closeBtn.addEventListener('click', () => {
+        panel.classList.add('hidden');
+        currentNotificationPanelCurp = null;
+      });
     }
 
     try {

@@ -176,6 +176,12 @@ window.MediAlertAPI = {
     });
   },
 
+  getPrescription(prescriptionId) {
+    return request(`${API_BASE}/doctors/prescriptions/${prescriptionId}`, {
+      headers: authHeaders(false)
+    });
+  },
+
   updatePrescription(prescriptionId, data) {
     return request(`${API_BASE}/doctors/prescriptions/${prescriptionId}`, {
       method: 'PUT',

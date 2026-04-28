@@ -1,4 +1,4 @@
-const express = require('express');
+ const express = require('express');
 const { verifyToken, requireDoctor, requireSameDoctor } = require('../middleware/auth');
 
 const router = express.Router();
@@ -757,7 +757,58 @@ router.get('/:doctorId/prescriptions', verifyToken, requireDoctor, requireSameDo
   }
 });
 
-// Editar receta completa
+// Obtener receta completa por ID (con items)
+router.get('/prescriptions/:prescriptionId', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { prescriptionId } = req.params;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const presResult = await query(
+        `SELECT p.*, pt.name as patient_name, pt.curp as patient_curp, d.name as doctor_name
+         FROM prescriptions p
+         JOIN patients pt ON pt.id = p.patient_id
+         LEFT JOIN doctors d ON d.id = p.doctor_id
+         WHERE p.id = $1 AND p.deleted_at IS NULL`,
+        [prescriptionId]
+      );
+      if (presResult.rows.length === 0) return res.status(404).json({ error: 'Receta no encontrada' });
+      const prescription = presResult.rows[0];
+      if (prescription.doctor_id !== req.user.id) return res.status(403).json({ error: 'No autorizado' });
+
+      const itemsResult = await query(
+        'SELECT * FROM prescription_items WHERE prescription_id = $1 ORDER BY time ASC, id ASC',
+        [prescriptionId]
+      );
+      prescription.items = itemsResult.rows;
+
+      return res.json({ success: true, prescription });
+    } else {
+      let targetPrescription = null;
+      Object.values(demo.prescriptions).forEach(presList => {
+        presList.forEach(pres => {
+          if (String(pres.id) === String(prescriptionId) && pres.doctor_id === req.user.id) {
+            const patient = Object.values(demo.patients).find(p => p.id === pres.patient_id);
+            targetPrescription = {
+              ...pres,
+              patient_name: patient?.name || '',
+              patient_curp: patient?.curp || ''
+            };
+          }
+        });
+      });
+      if (!targetPrescription) return res.status(404).json({ error: 'Receta no encontrada' });
+      return res.json({ success: true, prescription: targetPrescription });
+    }
+  } catch (error) {
+    console.error('Error obteniendo receta:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Editar receta completa (upsert inteligente para preservar IDs de items)
 router.put('/prescriptions/:prescriptionId', verifyToken, requireDoctor, async (req, res) => {
   try {
     const { prescriptionId } = req.params;
@@ -776,30 +827,50 @@ router.put('/prescriptions/:prescriptionId', verifyToken, requireDoctor, async (
 
       // Update prescription
       await query(
-        'UPDATE prescriptions SET diagnosis = $1, general_instructions = $2, status = COALESCE($3, status) WHERE id = $4',
+        'UPDATE prescriptions SET diagnosis = $1, general_instructions = $2, status = COALESCE($3, status), updated_at = CURRENT_TIMESTAMP WHERE id = $4',
         [diagnosis || '', general_instructions || '', status, prescriptionId]
       );
 
-      // Delete old items
-      await query('DELETE FROM prescription_items WHERE prescription_id = $1', [prescriptionId]);
+      // Obtener items actuales
+      const currentItemsResult = await query('SELECT id FROM prescription_items WHERE prescription_id = $1', [prescriptionId]);
+      const currentIds = currentItemsResult.rows.map(r => r.id);
+      const incomingIds = items.filter(i => i.id).map(i => Number(i.id));
+      const idsToDelete = currentIds.filter(id => !incomingIds.includes(id));
 
-      // Insert new items
-      const insertedItems = [];
+      // Eliminar items que ya no estan en la lista
+      if (idsToDelete.length > 0) {
+        await query('DELETE FROM prescription_items WHERE id = ANY($1)', [idsToDelete]);
+      }
+
+      // Actualizar items existentes e insertar nuevos
+      const processedItems = [];
       for (const item of items) {
-        const itemResult = await query(
-          'INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, interval_hours, time, duration_days, notes, emoji) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-          [prescriptionId, item.name, item.dose_mg, item.frequency || '', item.interval_hours || 24, item.time, item.duration_days || null, item.notes || '', item.emoji || '💊']
-        );
-        insertedItems.push(itemResult.rows[0]);
+        if (item.id && currentIds.includes(Number(item.id))) {
+          // Actualizar item existente
+          const updateResult = await query(
+            `UPDATE prescription_items 
+             SET name = $1, dose_mg = $2, frequency = $3, interval_hours = $4, time = $5, duration_days = $6, notes = $7, emoji = $8
+             WHERE id = $9 RETURNING *`,
+            [item.name, item.dose_mg, item.frequency || '', item.interval_hours || 24, item.time, item.duration_days || null, item.notes || '', item.emoji || '💊', item.id]
+          );
+          processedItems.push(updateResult.rows[0]);
+        } else {
+          // Insertar nuevo item
+          const insertResult = await query(
+            'INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, interval_hours, time, duration_days, notes, emoji) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
+            [prescriptionId, item.name, item.dose_mg, item.frequency || '', item.interval_hours || 24, item.time, item.duration_days || null, item.notes || '', item.emoji || '💊']
+          );
+          processedItems.push(insertResult.rows[0]);
+        }
       }
 
       return res.json({
         success: true,
-        message: `Receta #${prescriptionId} actualizada con ${insertedItems.length} medicamentos`,
-        items_count: insertedItems.length
+        message: `Receta #${prescriptionId} actualizada con ${processedItems.length} medicamentos`,
+        items_count: processedItems.length
       });
     } else {
-      // Demo logic similar...
+      // Demo logic
       let found = false;
       Object.values(demo.prescriptions).forEach(presList => {
         presList.forEach(pres => {
@@ -807,11 +878,28 @@ router.put('/prescriptions/:prescriptionId', verifyToken, requireDoctor, async (
             pres.diagnosis = diagnosis || pres.diagnosis;
             pres.general_instructions = general_instructions || pres.general_instructions;
             if (status) pres.status = status;
-            pres.items = items.map((item, idx) => ({
-              ...item,
-              id: idx + 1,
-              prescription_id: prescriptionId
-            }));
+            
+            // Upsert inteligente en demo
+            const currentItems = pres.items || [];
+            const incomingIds = items.filter(i => i.id).map(i => Number(i.id));
+            const newItems = [];
+            let nextId = currentItems.reduce((max, i) => Math.max(max, i.id || 0), 0) + 1;
+            
+            for (const item of items) {
+              if (item.id && currentItems.some(ci => ci.id === Number(item.id))) {
+                // Actualizar existente
+                const existing = currentItems.find(ci => ci.id === Number(item.id));
+                newItems.push({ ...existing, ...item, prescription_id: prescriptionId });
+              } else {
+                // Nuevo item
+                newItems.push({
+                  ...item,
+                  id: nextId++,
+                  prescription_id: prescriptionId
+                });
+              }
+            }
+            pres.items = newItems;
             found = true;
           }
         });
@@ -824,7 +912,6 @@ router.put('/prescriptions/:prescriptionId', verifyToken, requireDoctor, async (
     return res.status(500).json({ error: error.message });
   }
 });
-
 // Soft-delete receta
 router.delete('/prescriptions/:prescriptionId', verifyToken, requireDoctor, async (req, res) => {
   try {

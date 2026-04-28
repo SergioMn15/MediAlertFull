@@ -84,31 +84,38 @@
 
         <!-- Modal Editar -->
         <div id="edit-prescription-modal" class="modal" style="display: none;">
-          <div class="modal-content">
+          <div class="modal-content modal-large">
             <div class="modal-header">
               <h3 id="edit-modal-title">Editar Receta</h3>
-              <button class="close-modal">&times;</button>
+              <button class="close-modal" type="button" aria-label="Cerrar"><i class="fa-solid fa-times"></i></button>
             </div>
             <form id="edit-prescription-form">
               <input type="hidden" id="edit-prescription-id">
               <div class="form-group">
                 <label>Paciente</label>
-                <input type="text" id="edit-patient-name" readonly>
+                <input type="text" id="edit-patient-name" readonly class="form-control">
               </div>
               <div class="form-group">
                 <label>Diagnóstico</label>
-                <textarea id="edit-diagnosis" rows="2"></textarea>
+                <textarea id="edit-diagnosis" rows="2" class="form-control"></textarea>
               </div>
               <div class="form-group">
                 <label>Indicaciones generales</label>
-                <textarea id="edit-general-instructions" rows="3"></textarea>
+                <textarea id="edit-general-instructions" rows="3" class="form-control"></textarea>
               </div>
               <div class="form-group">
                 <label>Medicamentos</label>
-                <div id="edit-medications-list"></div>
-                <button type="button" id="add-edit-medication" class="btn btn-outline btn-small">+ Agregar medicamento</button>
+                <div id="edit-medications-list" class="edit-medications-container"></div>
+                <button type="button" id="add-edit-medication" class="btn btn-outline btn-small">
+                  <i class="fa-solid fa-plus"></i> Agregar medicamento
+                </button>
               </div>
-              <button type="submit" class="btn btn-primary">Guardar cambios</button>
+              <div class="form-actions">
+                <button type="button" class="btn btn-secondary close-modal-btn">Cancelar</button>
+                <button type="submit" class="btn btn-primary">
+                  <i class="fa-solid fa-save"></i> Guardar cambios
+                </button>
+              </div>
             </form>
           </div>
         </div>

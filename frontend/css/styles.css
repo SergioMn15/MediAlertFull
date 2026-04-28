@@ -908,6 +908,142 @@ textarea {
   }
 }
 
+/* Modal Edit Prescription Styles - Sencillo, sin efectos pesados */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 34, 29, 0.55);
+  z-index: 2200;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.modal-content {
+  width: min(720px, 100%);
+  max-height: 85vh;
+  overflow-y: auto;
+  border-radius: 20px;
+  background: #fff;
+  border: 1px solid rgba(23, 49, 43, 0.12);
+  box-shadow: 0 20px 60px rgba(18, 37, 33, 0.18);
+  padding: 1.5rem;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.modal-header .close-modal {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 0;
+  background: rgba(23, 49, 43, 0.06);
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 1rem;
+}
+
+.modal-header .close-modal:hover {
+  background: rgba(207, 75, 75, 0.12);
+  color: var(--danger);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.edit-medications-container {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.edit-medication-row {
+  padding: 0.85rem;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(23, 49, 43, 0.1);
+}
+
+.edit-medication-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.edit-medication-title {
+  font-weight: 700;
+  color: var(--primary-dark);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.edit-medication-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.edit-medication-grid .form-group {
+  margin-bottom: 0;
+}
+
+.edit-medication-row .form-group {
+  margin-bottom: 0.4rem;
+}
+
+.edit-medication-row .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-control {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.form-control:focus {
+  outline: 2px solid rgba(18, 124, 104, 0.16);
+  border-color: rgba(18, 124, 104, 0.42);
+}
+
+.btn-danger {
+  color: #fff;
+  background: linear-gradient(135deg, #cf4b4b, #b53a3a);
+  box-shadow: 0 8px 16px rgba(207, 75, 75, 0.18);
+}
+
 @media (max-width: 640px) {
   .app-shell,
   .app-container {
@@ -930,5 +1066,14 @@ textarea {
   .hero-panel,
   .feature-panel {
     padding: 1.2rem;
+  }
+
+  .edit-medication-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

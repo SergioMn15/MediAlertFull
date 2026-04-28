@@ -83,6 +83,10 @@ async function processDatabaseReminders(app) {
       const scheduledAt = getLatestDueReminderAt(item, row.issued_at, now);
       if (!scheduledAt) continue;
 
+      // Seguridad: no reenviar notificaciones de horarios muy pasados (>5 min)
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+      if (scheduledAt < fiveMinutesAgo) continue;
+
       const alreadyLogged = await hasLoggedScheduledReminderDb(row.id, scheduledAt);
       if (alreadyLogged) continue;
 

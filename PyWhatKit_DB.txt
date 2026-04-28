@@ -103,3 +103,93 @@ Time: 14:56
 Phone Number: +5213141479473
 Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 02:56 p.m.. Indicaciones: PRUEBAS
 --------------------
+Date: 27/4/2026
+Time: 16:7
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 03:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 16:16
+Phone Number: +5213121983023
+Message: Hola José Martín Camacho. Es momento de tomar Paracetamol 10 mg. Horario: 27-abr, 04:12 p.m.. Indicaciones: Tomar agua y dejar de beber alcohol
+--------------------
+Date: 27/4/2026
+Time: 18:40
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 05:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 18:40
+Phone Number: +5213121983023
+Message: Hola José Martín Camacho. Es momento de tomar Paracetamol 10 mg. Horario: 27-abr, 06:12 p.m.. Indicaciones: Tomar agua y dejar de beber alcohol
+--------------------
+Date: 27/4/2026
+Time: 19:3
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 06:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 19:6
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 06:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 19:7
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Paracetamol 100 mg. Horario: 27-abr, 06:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 19:21
+Phone Number: +5213121983023
+Message: Hola José Martín Camacho. Es momento de tomar Paracetamol 10 mg. Horario: 27-abr, 07:12 p.m.. Indicaciones: Tomar agua y dejar de beber alcohol
+--------------------
+Date: 27/4/2026
+Time: 19:23
+Phone Number: +5213121983023
+Message: Hola José Martín Camacho. Es momento de tomar Michelada 10 mg. Horario: 27-abr, 07:12 p.m.. Indicaciones: Tomar agua y dejar de beber alcohol
+--------------------
+Date: 27/4/2026
+Time: 19:25
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Besos 100 mg. Horario: 27-abr, 06:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 19:26
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Besos 100 mg. Horario: 27-abr, 06:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 19:26
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Abrazos 200 mg. Horario: 27-abr, 07:24 p.m.. Indicaciones: BESOOOOS
+--------------------
+Date: 27/4/2026
+Time: 19:43
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar AMORRTEEEXTRAÑO 100 mg. Horario: 27-abr, 06:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 27/4/2026
+Time: 19:43
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Abrazos 200 mg. Horario: 27-abr, 07:24 p.m.. Indicaciones: BESOOOOS
+--------------------
+Date: 27/4/2026
+Time: 19:56
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar AMORRTEEEXTRAÑO 100 mg. Horario: 27-abr, 07:56 p.m.. Indicaciones: PRUEBAS
+--------------------
+Date: 28/4/2026
+Time: 10:13
+Phone Number: +5213121983023
+Message: Hola José Martín Camacho. Es momento de tomar Michelada 10 mg. Horario: 28-abr, 10:12 a.m.. Indicaciones: Tomar agua y dejar de beber alcohol
+--------------------
+Date: 28/4/2026
+Time: 10:42
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Besitosmolo 100 mg. Horario: 28-abr, 10:42 a.m.. Indicaciones: Te adorooooooo
+--------------------
+Date: 28/4/2026
+Time: 10:43
+Phone Number: +5213141479473
+Message: Hola Gabriela Licea Figueroa. Es momento de tomar Me haces falta mucho 200 mg. Horario: 28-abr, 10:43 a.m.. Indicaciones: Mandame fotos te extrañoooo
+--------------------
