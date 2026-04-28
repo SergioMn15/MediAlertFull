@@ -99,7 +99,7 @@ async function initDoctorPage() {
     function renderPrescriptionList(prescriptions) {
       listContainer.innerHTML = prescriptions.length
         ? prescriptions.map(pres => `
-            <article class="prescription-card" data-prescription-id="${pres.id}">
+            <article class="prescription-card" data-prescription-id="${pres.id}" data-patient-curp="${escapeHtml(pres.patient_curp)}">
               <div>
                 <div class="flex gap-2 items-center">
                   <strong>Receta #${pres.id}</strong>
@@ -465,29 +465,64 @@ async function initDoctorPage() {
 
   // Variable para rastrear el panel de notificaciones abierto
   let currentNotificationPanelCurp = null;
+  let currentNotificationPanelElement = null;
 
   async function openNotificationPanel(curp) {
-    const panel = document.getElementById('notification-panel');
-    const content = document.getElementById('notification-panel-content');
-    const meta = document.getElementById('notification-panel-meta');
-    const closeBtn = document.getElementById('close-notification-panel');
-
-    if (!panel || !content) return;
-
-    // Guardar el CURP actual del panel
-    currentNotificationPanelCurp = curp;
-
-    panel.classList.remove('hidden');
-    content.innerHTML = '<div class="loading">Cargando medicamentos...</div>';
-    if (meta) meta.textContent = 'Paciente: ' + escapeHtml(curp);
-
-    if (closeBtn && !closeBtn.dataset.bound) {
-      closeBtn.dataset.bound = 'true';
-      closeBtn.addEventListener('click', () => {
-        panel.classList.add('hidden');
-        currentNotificationPanelCurp = null;
-      });
+    // Cerrar panel anterior si existe
+    if (currentNotificationPanelElement) {
+      currentNotificationPanelElement.remove();
+      currentNotificationPanelElement = null;
     }
+
+    // Buscar la tarjeta del paciente seleccionado
+    const prescriptionCard = document.querySelector(`.prescription-card[data-patient-curp="${curp}"]`);
+    if (!prescriptionCard) {
+      window.MediAlertMain.showToast('No se encontró la tarjeta del paciente', 'error');
+      return;
+    }
+
+    // Crear el panel de notificaciones inline
+    const panel = document.createElement('div');
+    panel.id = `notification-panel-${curp}`;
+    panel.className = 'notification-panel-inline';
+    panel.style.cssText = `
+      margin: 10px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+    `;
+
+    const content = document.createElement('div');
+    content.id = `notification-panel-content-${curp}`;
+    content.innerHTML = '<div class="loading">Cargando medicamentos...</div>';
+
+    const meta = document.createElement('p');
+    meta.id = `notification-panel-meta-${curp}`;
+    meta.style.cssText = 'margin: 0 0 10px 0; font-weight: 600; color: #333;';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'btn btn-outline btn-small';
+    closeBtn.textContent = 'Cerrar';
+    closeBtn.style.cssText = 'float: right; margin-bottom: 10px;';
+    closeBtn.onclick = () => {
+      panel.remove();
+      currentNotificationPanelCurp = null;
+      currentNotificationPanelElement = null;
+    };
+
+    panel.appendChild(closeBtn);
+    panel.appendChild(meta);
+    panel.appendChild(content);
+
+    // Insertar el panel después de la tarjeta del paciente
+    prescriptionCard.after(panel);
+
+    // Guardar referencia
+    currentNotificationPanelCurp = curp;
+    currentNotificationPanelElement = panel;
+
+    if (meta) meta.textContent = 'Paciente: ' + escapeHtml(curp);
 
     try {
       const response = await window.MediAlertAPI.getPatientData(curp);
@@ -501,7 +536,7 @@ async function initDoctorPage() {
           : `Paciente: ${escapeHtml(patient.name)} · Sin receta activa`;
       }
 
-      renderNotificationControls(activePrescription, medications, content, curp);
+      renderNotificationControls(activePrescription, medications, content, curp, panel);
     } catch (error) {
       content.innerHTML = `<div class="empty-state">${escapeHtml(error.message || 'No se pudo cargar el control de notificaciones.')}</div>`;
     }
