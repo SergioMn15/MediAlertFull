@@ -93,8 +93,13 @@ function buildHostConfig() {
 function createPool(config) {
   const newPool = new Pool(config);
 
-  newPool.on('connect', () => {
+  newPool.on('connect', (client) => {
     console.log('Conectado a PostgreSQL');
+    // Establecer zona horaria a America/Mexico_City para todas las conexiones
+    // Esto asegura que CURRENT_TIMESTAMP y las fechas se guarden en hora local
+    client.query("SET timezone TO 'America/Mexico_City'").catch(err => {
+      console.error('Error al establecer timezone:', err.message);
+    });
   });
 
   newPool.on('error', (err) => {
