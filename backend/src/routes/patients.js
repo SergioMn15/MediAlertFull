@@ -1125,7 +1125,7 @@ router.post('/test-sms', async (req, res) => {
   }
 });
 
-router.post('/test-whatsapp', async (req, res) => {
+router.post('/test-whatsapp', verifyToken, requireDoctor, async (req, res) => {
   try {
     const { phone } = req.body;
 
@@ -1146,12 +1146,12 @@ router.post('/test-whatsapp', async (req, res) => {
     };
     const scheduledAt = new Date();
 
-    const result = await notifier.sendWhatsappReminder(patientMock, itemMock, scheduledAt);
+    const result = await notifier.sendWhatsappReminder(patientMock, itemMock, scheduledAt, req.user.id);
 
     return res.json({
       success: true,
       message: 'Test WhatsApp ejecutado',
-      provider: 'pywhatkit',
+      provider: result.provider,
       result
     });
   } catch (error) {

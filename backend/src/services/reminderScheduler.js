@@ -58,7 +58,7 @@ async function processDatabaseReminders(app) {
     const result = await query(`
       SELECT pr.id AS prescription_id, pr.issued_at,
              pi.id, pi.name AS medication_name, pi.dose_mg, pi.frequency, pi.time, pi.duration_days, pi.interval_hours, pi.notes, pi.emoji,
-             p.id AS patient_id, p.name, p.email, p.phone, p.reminder_channel, p.reminder_opt_in
+             p.id AS patient_id, p.name, p.email, p.phone, p.reminder_channel, p.reminder_opt_in, p.doctor_id
       FROM prescriptions pr
       JOIN patients p ON p.id = pr.patient_id
       JOIN prescription_items pi ON pi.prescription_id = pr.id
@@ -99,7 +99,7 @@ async function processDatabaseReminders(app) {
         reminder_opt_in: row.reminder_opt_in
       };
 
-      const outcome = await sendReminderNotification(patient, item, scheduledAt);
+      const outcome = await sendReminderNotification(patient, item, scheduledAt, row.doctor_id);
 
       if (outcome.status !== 'skipped') {
         console.log(`[Reminder] ${row.name} - ${item.name} → ${outcome.status}`);

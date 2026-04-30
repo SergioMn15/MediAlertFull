@@ -9,9 +9,13 @@ const patientsRoutes = require('./backend/src/routes/patients');
 const doctorsRoutes = require('./backend/src/routes/doctors');
 const { getPool } = require('./backend/src/config/db');
 const { startReminderScheduler } = require('./backend/src/services/reminderScheduler');
+const { initializeSavedSessions } = require('./backend/src/services/whatsappService');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const DEFAULT_PORT = 3000;
+const parsedPort = Number(process.env.PORT || DEFAULT_PORT);
+const PORT = Number.isInteger(parsedPort) && parsedPort > 0 ? parsedPort : DEFAULT_PORT;
+const MAX_PORT_RETRIES = 10;
 const frontendDir = path.join(__dirname, 'frontend');
 
 let demoData = createEmptyDemoData();
@@ -259,6 +263,16 @@ async function ensureDatabaseSchema() {
   await db.query(`
     ALTER TABLE patients
     ADD COLUMN IF NOT EXISTS reminder_opt_in BOOLEAN DEFAULT true
+  `);
+
+  await db.query(`
+    ALTER TABLE doctors
+    ADD COLUMN IF NOT EXISTS whatsapp_connected BOOLEAN DEFAULT false
+  `);
+
+  await db.query(`
+    ALTER TABLE doctors
+    ADD COLUMN IF NOT EXISTS whatsapp_session TEXT
   `);
 
   await db.query(`
@@ -579,13 +593,49 @@ async function initDatabase() {
   }
 }
 
-initDatabase().then(() => {
-  startReminderScheduler(app);
-  app.listen(PORT, () => {
-    console.log(`MediAlert disponible en http://localhost:${PORT}`);
-    console.log(`API disponible en http://localhost:${PORT}/api`);
+function startServer(port, retriesLeft = MAX_PORT_RETRIES) {
+  const server = app.listen(port);
+
+  server.on('listening', () => {
+    const address = server.address();
+    const activePort = typeof address === 'object' && address ? address.port : port;
+
+    console.log(`MediAlert disponible en http://localhost:${activePort}`);
+    console.log(`API disponible en http://localhost:${activePort}/api`);
     console.log(`Modo actual: ${useDatabase ? 'PostgreSQL' : 'Demo'}`);
   });
+
+  server.on('error', (error) => {
+    if (error.code !== 'EADDRINUSE') {
+      console.error('Error al iniciar servidor:', error.message);
+      process.exit(1);
+    }
+
+    if (process.env.PORT || retriesLeft <= 0) {
+      console.error(`El puerto ${port} ya esta en uso.`);
+      console.error(`Cierra el proceso que usa ese puerto o inicia con otro, por ejemplo: $env:PORT=${port + 1}; node server.js`);
+      process.exit(1);
+    }
+
+    const nextPort = port + 1;
+    console.warn(`El puerto ${port} ya esta en uso. Probando puerto ${nextPort}...`);
+    startServer(nextPort, retriesLeft - 1);
+  });
+
+  return server;
+}
+
+initDatabase().then(async () => {
+  startReminderScheduler(app);
+  
+  // Inicializar sesiones de WhatsApp guardadas (si estamos en modo base de datos)
+  if (useDatabase) {
+    console.log('🔄 Iniciando sesiones de WhatsApp guardadas...');
+    await initializeSavedSessions();
+    console.log('✅ Sesiones de WhatsApp inicializadas');
+  }
+  
+  startServer(PORT);
 });
 
 module.exports = app;

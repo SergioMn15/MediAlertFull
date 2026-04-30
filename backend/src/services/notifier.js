@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { execFile } = require('child_process');
 const { buildReminderMessage } = require('./reminderEngine');
+// WhatsApp deshabilitado temporalmente por error de compilación
+const whatsappService = require('./whatsappService');
 
 async function sendEmailReminder(patient, item, scheduledAt) {
   const from = process.env.REMINDER_FROM_EMAIL;
@@ -175,17 +177,60 @@ async function sendPyWhatKitWhatsappReminder(patient, message) {
   }
 }
 
-async function sendWhatsappReminder(patient, item, scheduledAt) {
+async function sendWhatsappReminder(patient, item, scheduledAt, doctorId = null) {
   const message = buildReminderMessage(patient, item, scheduledAt);
 
   if (!patient.phone) {
     return { status: 'skipped', provider: 'whatsapp', error_message: 'Paciente sin telefono configurado' };
   }
 
+  // Intentar usar Baileys si hay un doctorId y sesión activa
+  if (doctorId && whatsappService.isDoctorConnected(doctorId)) {
+    try {
+      const result = await whatsappService.sendWhatsAppMessage(doctorId, patient.phone, message.text);
+      return {
+        status: 'sent',
+        provider: 'baileys-whatsapp',
+        recipient: patient.phone,
+        message_body: message.text,
+        message_id: result.messageId
+      };
+    } catch (error) {
+      console.error(`Error enviando WhatsApp con Baileys: ${error.message}`);
+      return {
+        status: 'failed',
+        provider: 'baileys-whatsapp',
+        recipient: patient.phone,
+        message_body: message.text,
+        error_message: error.message || 'Error enviando WhatsApp con sesion vinculada'
+      };
+    }
+  }
+
+  if (doctorId) {
+    return {
+      status: 'failed',
+      provider: 'baileys-whatsapp',
+      recipient: patient.phone,
+      message_body: message.text,
+      error_message: 'El doctor no tiene una sesion de WhatsApp activa'
+    };
+  }
+
+  if (process.env.PYWHATKIT_FALLBACK_ENABLED !== 'true') {
+    return {
+      status: 'failed',
+      provider: 'whatsapp',
+      recipient: patient.phone,
+      message_body: message.text,
+      error_message: 'No hay doctorId para usar la sesion vinculada de WhatsApp'
+    };
+  }
+
   return sendPyWhatKitWhatsappReminder(patient, message);
 }
 
-async function sendReminderNotification(patient, item, scheduledAt) {
+async function sendReminderNotification(patient, item, scheduledAt, doctorId = null) {
   const channel = patient.reminder_channel || 'email';
 
   if (!patient.reminder_opt_in || channel === 'none') {
@@ -196,7 +241,7 @@ async function sendReminderNotification(patient, item, scheduledAt) {
     return sendSMSReminder(patient, item, scheduledAt);
   }
   if (channel === 'whatsapp') {
-    return sendWhatsappReminder(patient, item, scheduledAt);
+    return sendWhatsappReminder(patient, item, scheduledAt, doctorId);
   }
 
   return sendEmailReminder(patient, item, scheduledAt);

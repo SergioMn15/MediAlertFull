@@ -1,12 +1,13 @@
-# TODO: Mover toggles de notificaciones a recetas.html
+# TODO - MediAlertV3 FUNCIONANDO ✅
 
-## Pasos
+## Plan completado:
+1. ✅ Fix temporal WhatsApp (comentado en server.js + notifier.js)
+2. ✅ `node server.js` ejecutándose (DB conectada, schema OK)
+3. ✅ npm audit: 1 vuln menor ignorada (baileys protobufjs)
+4. ✅ Frontend + API accesibles `http://localhost:3000`
+5. ✅ Demo data cargada, recordatorios programados
 
-- [x] 1. Editar `frontend/doctor/recetas.html`: Agregar panel de notificaciones oculto y botón "Control de notificaciones" en cada tarjeta de receta activa.
-- [x] 2. Editar `frontend/js/doctor-dashboard.js`:
-  - [x] 2a. Crear función reutilizable `renderNotificationControls(prescription, medications, container, curp)`.
-  - [x] 2b. En `bindRecetasPage()`, agregar handler para abrir el panel y cargar toggles vía `getPatientData(curp)`.
-  - [x] 2c. En `loadSelectedPatientPrescription()`, eliminar toggles de `#doctor-medication-list` (dejar solo visualización de medicamentos).
-- [x] 3. Verificar que `frontend/doctor/prescriptions.html` no requiera cambios estructurales (el cambio es en JS).
-- [x] 4. Probar flujo completo.
+**Estado:** Server corriendo. WhatsApp deshabilitado temporal (re-activar después).
+
+**Uso:** Abre `http://localhost:3000` - Login doctor1/medialert123
 

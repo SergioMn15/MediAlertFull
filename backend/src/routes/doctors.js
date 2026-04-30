@@ -1,5 +1,6 @@
- const express = require('express');
+const express = require('express');
 const { verifyToken, requireDoctor, requireSameDoctor } = require('../middleware/auth');
+const QRCode = require('qrcode');
 
 const router = express.Router();
 
@@ -997,6 +998,157 @@ router.post('/prescriptions/:prescriptionId/approve-request', verifyToken, requi
     }
   } catch (error) {
     console.error('Error aprobando solicitud:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// ========== ENDPOINTS DE WHATSAPP ==========
+
+// Obtener estado de WhatsApp del doctor
+router.get('/whatsapp/status', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const isDb = useDatabase(req);
+    const whatsappService = require('../services/whatsappService');
+    
+    // Verificar si está conectado en memoria
+    const isConnected = whatsappService.isDoctorConnected(doctorId);
+    
+    if (isDb) {
+      const { query } = require('../config/db');
+      const result = await query(
+        'SELECT whatsapp_connected FROM doctors WHERE id = $1',
+        [doctorId]
+      );
+      
+      const dbConnected = result.rows.length > 0 && result.rows[0].whatsapp_connected;
+      
+      return res.json({
+        success: true,
+        connected: isConnected,
+        hasSession: dbConnected
+      });
+    }
+    
+    return res.json({
+      success: true,
+      connected: isConnected,
+      hasSession: false
+    });
+  } catch (error) {
+    console.error('Error obteniendo estado de WhatsApp:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Iniciar configuración de WhatsApp (generar QR)
+router.post('/whatsapp/setup', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const whatsappService = require('../services/whatsappService');
+    
+    // Verificar si ya está conectado
+    if (whatsappService.isDoctorConnected(doctorId)) {
+      return res.json({
+        success: true,
+        message: 'Ya tienes WhatsApp conectado',
+        connected: true
+      });
+    }
+    
+    let qrCode = null;
+    
+    // Crear cliente de WhatsApp
+    await whatsappService.createWhatsAppClient(doctorId, {
+      onQR: (qr) => {
+        qrCode = qr;
+        console.log('QR generado para doctor:', doctorId);
+      },
+      onReady: () => {
+        console.log('WhatsApp conectado para doctor:', doctorId);
+      },
+      onDisconnect: (shouldReconnect) => {
+        if (!shouldReconnect) {
+          console.log('WhatsApp desconectado permanentemente para doctor:', doctorId);
+        }
+      }
+    });
+    
+    // Esperar a que Baileys entregue el QR o confirme conexion.
+    for (let attempt = 0; attempt < 15 && !qrCode && !whatsappService.isDoctorConnected(doctorId); attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      qrCode = qrCode || whatsappService.getLatestQr(doctorId);
+    }
+    
+    if (qrCode) {
+      const qrImage = await QRCode.toDataURL(qrCode, {
+        errorCorrectionLevel: 'M',
+        margin: 2,
+        width: 320
+      });
+
+      return res.json({
+        success: true,
+        connected: false,
+        qr: qrCode,
+        qrImage,
+        message: 'Escanea el código QR con tu WhatsApp'
+      });
+    }
+    
+    // Si ya está conectado
+    if (whatsappService.isDoctorConnected(doctorId)) {
+      return res.json({
+        success: true,
+        connected: true,
+        message: 'WhatsApp ya está conectado'
+      });
+    }
+    
+    return res.json({
+      success: true,
+      connected: false,
+      message: 'WhatsApp no entrego un codigo QR. Intenta de nuevo en unos segundos.',
+      connectionError: whatsappService.getLastConnectionError(doctorId)
+    });
+  } catch (error) {
+    console.error('Error configurando WhatsApp:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Cerrar sesión de WhatsApp
+router.delete('/whatsapp/logout', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const whatsappService = require('../services/whatsappService');
+    
+    await whatsappService.logoutWhatsApp(doctorId);
+    
+    return res.json({
+      success: true,
+      message: 'Sesión de WhatsApp cerrada'
+    });
+  } catch (error) {
+    console.error('Error cerrando sesión de WhatsApp:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+// Verificar estado de conexión (polling)
+router.get('/whatsapp/check', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const whatsappService = require('../services/whatsappService');
+    
+    const isConnected = whatsappService.isDoctorConnected(doctorId);
+    
+    return res.json({
+      success: true,
+      connected: isConnected
+    });
+  } catch (error) {
+    console.error('Error verificando WhatsApp:', error);
     return res.status(500).json({ error: error.message });
   }
 });
