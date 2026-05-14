@@ -91,6 +91,24 @@ window.MediAlertAPI = {
     });
   },
 
+  updatePatientProfile(curp, payload) {
+    return request(`${API_BASE}/patients/${curp}/profile`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+  },
+
+  deletePatient(curp) {
+    return request(`${API_BASE}/patients/${curp}`, {
+      method: 'DELETE',
+      headers: authHeaders()
+    });
+  },
+
+
+
+
   registerPatient(payload) {
     return request(`${API_BASE}/patients`, {
       method: 'POST',

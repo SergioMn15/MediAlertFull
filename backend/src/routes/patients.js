@@ -900,6 +900,89 @@ router.put('/:curp/clinical-profile', verifyToken, requireDoctor, async (req, re
   }
 });
 
+// PUT: actualizar perfil general del paciente (nombre/email/telefono/canal)
+router.put('/:curp/profile', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const {
+      name = '',
+      email = '',
+      phone = '',
+      reminder_channel = 'email'
+    } = req.body;
+
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ error: 'Nombre requerido' });
+    }
+
+    const allowedChannels = new Set(['email', 'sms', 'whatsapp']);
+    if (!allowedChannels.has(reminder_channel)) {
+      return res.status(400).json({ error: 'Canal invalido' });
+    }
+
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      const patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      const result = await query(
+        `UPDATE patients
+         SET name = $1,
+             email = $2,
+             phone = $3,
+             reminder_channel = $4
+         WHERE id = $5
+         RETURNING id, curp, name, email, phone, reminder_channel, reminder_opt_in, doctor_id, created_at`,
+        [name.trim(), String(email).trim(), String(phone).trim(), reminder_channel, patient.id]
+      );
+
+      return res.json({
+        success: true,
+        message: 'Paciente actualizado correctamente',
+        patient: result.rows[0]
+      });
+    }
+
+    const patient = Object.values(demo.patients).find((item) => normalizeCurp(item.curp) === normalizeCurp(curp));
+    if (!patient) {
+      return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+
+    if (!ensurePatientAccess(req, res, patient)) {
+      return;
+    }
+
+    patient.name = name.trim();
+    patient.email = String(email).trim();
+    patient.phone = String(phone).trim();
+    patient.reminder_channel = reminder_channel;
+
+    return res.json({
+      success: true,
+      message: 'Paciente actualizado correctamente',
+      patient
+    });
+  } catch (error) {
+    console.error('Error al actualizar perfil de paciente:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
 router.get('/:curp/reminders/today', verifyToken, async (req, res) => {
   try {
     const { curp } = req.params;
@@ -1502,4 +1585,67 @@ router.get('/:curp/reminders/overview', verifyToken, async (req, res) => {
   }
 });
 
+// DELETE: eliminar (soft-delete en DB / baja lógica en demo)
+router.delete('/:curp', verifyToken, requireDoctor, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, doctor_id FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      const patient = patientResult.rows[0];
+      if (patient.doctor_id !== req.user.id) {
+        return res.status(403).json({ error: 'No autorizado' });
+      }
+
+      // soft delete: el esquema actual de 'patients' NO trae deleted_at.
+      // Para mantener consistencia, eliminamos el paciente (cascada/consistencia la maneja el esquema actual).
+      // Si el proyecto en el futuro agrega deleted_at, se ajusta este endpoint.
+      const result = await query(
+        `DELETE FROM patients WHERE id = $1 RETURNING id`,
+        [patient.id]
+      );
+
+      return res.json({ success: true, message: 'Paciente eliminado', patient_id: result.rows[0]?.id });
+
+    }
+
+    // Demo: baja lógica
+    const key = normalizeCurp(curp);
+    const patient = demo.patients[key];
+    if (!patient) {
+      return res.status(404).json({ error: 'Paciente no encontrado' });
+    }
+    if (patient.doctor_id !== req.user.id) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
+
+    demo.patients[key].deleted_at = new Date().toISOString();
+
+    // En demo también marcamos recetas como deleted si aplica
+    if (demo.prescriptions?.[patient.id]) {
+      demo.prescriptions[patient.id].forEach((p) => {
+        p.status = 'deleted';
+        p.deleted_at = new Date().toISOString();
+      });
+    }
+
+    return res.json({ success: true, message: 'Paciente eliminado' });
+  } catch (error) {
+    console.error('Error al eliminar paciente:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router;
+

@@ -34,17 +34,38 @@ function getSessionDir(doctorId) {
   return path.join(__dirname, '..', '..', 'whatsapp_sessions', `doctor_${doctorId}`);
 }
 
+function ensureSessionDirExists(doctorId) {
+  const sessionDir = getSessionDir(doctorId);
+  if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
+  }
+}
+
+function hasSavedSession(doctorId) {
+  const sessionDir = getSessionDir(doctorId);
+  return fs.existsSync(sessionDir) && fs.readdirSync(sessionDir).length > 0;
+}
+
 function removeSessionFiles(doctorId) {
   const sessionDir = getSessionDir(doctorId);
-  if (fs.existsSync(sessionDir)) {
-    fs.rmSync(sessionDir, { recursive: true, force: true });
+  try {
+    if (fs.existsSync(sessionDir)) {
+      fs.rmSync(sessionDir, { recursive: true, force: true, maxRetries: 3 });
+    }
+  } catch (e) {
+    console.warn(`No se pudo limpiar carpeta de sesion (doctor ${doctorId}):`, e.message);
   }
 
   const legacySessionFile = path.join(__dirname, '..', '..', 'whatsapp_sessions', `doctor_${doctorId}.json`);
-  if (fs.existsSync(legacySessionFile)) {
-    fs.unlinkSync(legacySessionFile);
+  try {
+    if (fs.existsSync(legacySessionFile)) {
+      fs.unlinkSync(legacySessionFile);
+    }
+  } catch (e) {
+    console.warn(`No se pudo limpiar sesion legacy (doctor ${doctorId}):`, e.message);
   }
 }
+
 
 async function markDoctorWhatsAppConnected(doctorId, connected) {
   try {
@@ -70,6 +91,7 @@ async function createWhatsAppClient(doctorId, callbacks = {}) {
     return whatsappClients.get(doctorId);
   }
 
+  ensureSessionDirExists(doctorId);
   const { state, saveCreds } = await useMultiFileAuthState(getSessionDir(doctorId));
   const { version, isLatest, error: versionError } = await fetchLatestWaWebVersion({
     timeout: 10000
@@ -171,11 +193,28 @@ function getLastConnectionError(doctorId) {
 
 function isDoctorConnected(doctorId) {
   const client = whatsappClients.get(doctorId);
-  return Boolean(client?.user);
+  if (!client) return false;
+
+  // En Baileys, `client.user` puede no estar disponible aún aunque ya se haya abierto conexión.
+  // Usamos señales más seguras.
+  const hasUser = Boolean(client?.user);
+  const hasKey = Boolean(client?.key);
+  return hasUser || hasKey;
 }
 
+
 async function sendWhatsAppMessage(doctorId, phoneNumber, message) {
-  const client = getWhatsAppClient(doctorId);
+  let client = getWhatsAppClient(doctorId);
+
+  if (!client && hasSavedSession(doctorId)) {
+    console.log(`No hay cliente Baileys en memoria para doctor ${doctorId}, intentando restaurar desde sesion guardada...`);
+    try {
+      await createWhatsAppClient(doctorId);
+      client = getWhatsAppClient(doctorId);
+    } catch (restoreError) {
+      console.warn(`No se pudo restaurar el cliente de WhatsApp para doctor ${doctorId}:`, restoreError.message);
+    }
+  }
 
   if (!client) {
     throw new Error(`No hay sesion de WhatsApp activa para el doctor ${doctorId}`);
@@ -218,32 +257,51 @@ async function logoutWhatsApp(doctorId) {
 }
 
 async function initializeSavedSessions() {
-  try {
-    const { query } = require('../config/db');
-    const result = await query(
-      'SELECT id FROM doctors WHERE whatsapp_connected = true'
-    );
+  const sessionRoot = path.join(__dirname, '..', '..', 'whatsapp_sessions');
+  const doctorsToRestore = new Set();
 
-    console.log(`Encontradas ${result.rows.length} sesiones de WhatsApp guardadas`);
-
-    for (const row of result.rows) {
-      const doctorId = row.id;
-      try {
-        await createWhatsAppClient(doctorId, {
-          onReady: () => console.log(`Sesion restaurada para doctor ${doctorId}`),
-          onQR: () => console.log(`QR necesario para doctor ${doctorId} (sesion expirada)`),
-          onDisconnect: (shouldReconnect) => {
-            if (!shouldReconnect) {
-              console.log(`Sesion de doctor ${doctorId} cerrada permanentemente`);
-            }
-          }
-        });
-      } catch (error) {
-        console.error(`Error restaurando sesion para doctor ${doctorId}:`, error.message);
+  if (fs.existsSync(sessionRoot)) {
+    const entries = fs.readdirSync(sessionRoot, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const match = entry.name.match(/^doctor_(\d+)$/);
+      if (match) {
+        doctorsToRestore.add(Number(match[1]));
       }
     }
+  }
+
+  try {
+    const { query } = require('../config/db');
+    const result = await query('SELECT id FROM doctors WHERE whatsapp_connected = true');
+    for (const row of result.rows) {
+      doctorsToRestore.add(row.id);
+    }
   } catch (error) {
-    console.error('Error inicializando sesiones guardadas:', error.message);
+    console.error('Error consultando la DB para sesiones guardadas:', error.message);
+  }
+
+  if (doctorsToRestore.size === 0) {
+    console.log('No se encontraron sesiones de WhatsApp para restaurar');
+    return;
+  }
+
+  console.log(`Encontradas ${doctorsToRestore.size} sesiones de WhatsApp potenciales para restaurar`);
+
+  for (const doctorId of doctorsToRestore) {
+    try {
+      await createWhatsAppClient(doctorId, {
+        onReady: () => console.log(`Sesion restaurada para doctor ${doctorId}`),
+        onQR: () => console.log(`QR necesario para doctor ${doctorId} (sesion expirada)`),
+        onDisconnect: (shouldReconnect) => {
+          if (!shouldReconnect) {
+            console.log(`Sesion de doctor ${doctorId} cerrada permanentemente`);
+          }
+        }
+      });
+    } catch (error) {
+      console.error(`Error restaurando sesion para doctor ${doctorId}:`, error.message);
+    }
   }
 }
 

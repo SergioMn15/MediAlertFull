@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Mis pacientes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="doctor-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Mis pacientes</h2>
+            <p>Lista independiente con búsqueda, filtros y acceso directo al expediente.</p>
+          </div>
+        </div>
+
+        <section>
+          <div class="content-actions">
+            <div class="search-box">
+              <i class="fa-solid fa-magnifying-glass"></i>
+              <input id="patients-search" type="text" placeholder="Buscar por nombre o CURP" autocomplete="off" />
+            </div>
+
+            <div class="filter-box">
+              <label class="filter-label" for="patients-status">Estado</label>
+              <select id="patients-status">
+                <option value="all">Todos</option>
+                <option value="active">Con receta activa</option>
+                <option value="none">Sin receta activa</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="content-header" style="margin-top: 14px;">
+            <div>
+              <h2>Directorio de pacientes</h2>
+              <p>Haz clic en “Editar” para actualizar perfil o en “Eliminar” para dar de baja el paciente.</p>
+            </div>
+            <div class="pill-row">
+              <span class="tag" id="patients-total-tag">0 pacientes</span>
+            </div>
+          </div>
+
+          <div id="doctor-patients-list" class="patients-grid"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: editar paciente (perfil) -->
+  <div id="edit-patient-modal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal-card">
+      <div class="content-header">
+        <div>
+          <h2>Editar paciente</h2>
+          <p id="edit-patient-subtitle">Actualiza información general del paciente.</p>
+        </div>
+        <button id="edit-patient-modal-close" class="btn btn-outline btn-small" type="button">Cerrar</button>
+      </div>
+
+      <form id="edit-patient-form" class="modal-form">
+        <input type="hidden" id="edit-patient-curp" />
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-patient-name">Nombre</label>
+            <input type="text" id="edit-patient-name" required />
+          </div>
+          <div class="form-group">
+            <label for="edit-patient-email">Email</label>
+            <input type="email" id="edit-patient-email" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="edit-patient-phone">Teléfono</label>
+            <input type="text" id="edit-patient-phone" />
+          </div>
+          <div class="form-group">
+            <label for="edit-patient-channel">Canal preferido</label>
+            <select id="edit-patient-channel" required>
+              <option value="email">Email</option>
+              <option value="sms">SMS</option>
+              <option value="whatsapp">WhatsApp</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="pill-row">
+          <button id="edit-patient-save" class="btn btn-primary" type="submit">Guardar cambios</button>
+          <button id="edit-patient-cancel" class="btn btn-outline" type="button">Cancelar</button>
+        </div>
+
+        <p id="edit-patient-message" class="form-message"></p>
+      </form>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/doctor-patients.js"></script>
+</body>
+</html>
+

@@ -1,5 +1,5 @@
 const { query } = require('../config/db');
-const { getLatestDueReminderAt } = require('./reminderEngine');
+const { getLatestDueReminderAt, resolveIntervalHours } = require('./reminderEngine');
 const { sendReminderNotification } = require('./notifier');
 
 async function hasLoggedScheduledReminderDb(prescriptionItemId, scheduledAt) {
@@ -83,9 +83,16 @@ async function processDatabaseReminders(app) {
       const scheduledAt = getLatestDueReminderAt(item, row.issued_at, now);
       if (!scheduledAt) continue;
 
-      // Seguridad: no reenviar notificaciones de horarios muy pasados (>5 min)
-      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-      if (scheduledAt < fiveMinutesAgo) continue;
+      const intervalHours = resolveIntervalHours(item);
+      const intervalMs = intervalHours * 60 * 60 * 1000;
+      const maxLateMs = Math.min(intervalMs, 24 * 60 * 60 * 1000);
+      const ageMs = now.getTime() - scheduledAt.getTime();
+
+      if (ageMs < 0) continue;
+      if (ageMs > maxLateMs) {
+        console.log(`[Scheduler] No enviar: recordatorio demasiado antiguo para itemId=${item.id} scheduledAt=${scheduledAt.toISOString()} ageMs=${ageMs}`);
+        continue;
+      }
 
       const alreadyLogged = await hasLoggedScheduledReminderDb(row.id, scheduledAt);
       if (alreadyLogged) continue;
@@ -99,7 +106,10 @@ async function processDatabaseReminders(app) {
         reminder_opt_in: row.reminder_opt_in
       };
 
+      console.log(`[Scheduler] Enviando reminder: patientId=${row.patient_id} itemId=${row.id} canal=${row.reminder_channel} optIn=${row.reminder_opt_in} doctorId=${row.doctor_id} scheduledAt=${scheduledAt.toISOString()}`);
+
       const outcome = await sendReminderNotification(patient, item, scheduledAt, row.doctor_id);
+
 
       if (outcome.status !== 'skipped') {
         console.log(`[Reminder] ${row.name} - ${item.name} → ${outcome.status}`);

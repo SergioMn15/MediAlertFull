@@ -180,12 +180,38 @@ async function sendPyWhatKitWhatsappReminder(patient, message) {
 async function sendWhatsappReminder(patient, item, scheduledAt, doctorId = null) {
   const message = buildReminderMessage(patient, item, scheduledAt);
 
+  console.log(`[Notifier][WhatsApp] preparado: doctorId=${doctorId} paciente=${patient.name} phone=${patient.phone} scheduledAt=${scheduledAt.toISOString()}`);
+
+
   if (!patient.phone) {
     return { status: 'skipped', provider: 'whatsapp', error_message: 'Paciente sin telefono configurado' };
   }
 
   // Intentar usar Baileys si hay un doctorId y sesión activa
-  if (doctorId && whatsappService.isDoctorConnected(doctorId)) {
+  let doctorConnected = false;
+  try {
+    doctorConnected = doctorId ? whatsappService.isDoctorConnected(doctorId) : false;
+  } catch (e) {
+    console.error('[Notifier][WhatsApp] error comprobando sesion:', e.message);
+  }
+  console.log(`[Notifier][WhatsApp] sesionDoctorConnected? doctorId=${doctorId} conectado=${doctorConnected}`);
+
+  if (!doctorConnected && doctorId) {
+    console.log(`[Notifier][WhatsApp] doctorId existe pero no hay cliente activo en memoria, intentando restaurar sesion doctorId=${doctorId}`);
+    try {
+      await whatsappService.createWhatsAppClient(doctorId, {
+        onReady: () => console.log(`Restauracion de WhatsApp completa para doctor ${doctorId}`),
+        onQR: () => console.log(`Necesita QR para doctor ${doctorId} durante restauracion`),
+        onDisconnect: () => console.log(`Desconectado durante restauracion para doctor ${doctorId}`)
+      });
+      doctorConnected = whatsappService.isDoctorConnected(doctorId);
+      console.log(`[Notifier][WhatsApp] restauracion completada doctorId=${doctorId} conectado=${doctorConnected}`);
+    } catch (restoreError) {
+      console.warn(`[Notifier][WhatsApp] no se pudo restaurar la sesion de WhatsApp: ${restoreError.message}`);
+    }
+  }
+
+  if (doctorId && doctorConnected) {
     try {
       const result = await whatsappService.sendWhatsAppMessage(doctorId, patient.phone, message.text);
       return {
@@ -208,22 +234,18 @@ async function sendWhatsappReminder(patient, item, scheduledAt, doctorId = null)
   }
 
   if (doctorId) {
-    return {
-      status: 'failed',
-      provider: 'baileys-whatsapp',
-      recipient: patient.phone,
-      message_body: message.text,
-      error_message: 'El doctor no tiene una sesion de WhatsApp activa'
-    };
+    console.warn(
+      `[Notifier][WhatsApp] doctorId existe pero no conectado. Intentando respaldo PyWhatKit. doctorId=${doctorId} paciente=${patient.name} phone=${patient.phone}`
+    );
   }
 
   if (process.env.PYWHATKIT_FALLBACK_ENABLED !== 'true') {
     return {
       status: 'failed',
-      provider: 'whatsapp',
+      provider: 'baileys-whatsapp',
       recipient: patient.phone,
       message_body: message.text,
-      error_message: 'No hay doctorId para usar la sesion vinculada de WhatsApp'
+      error_message: 'El doctor no tiene una sesion de WhatsApp activa (Baileys) y PyWhatKit fallback deshabilitado'
     };
   }
 

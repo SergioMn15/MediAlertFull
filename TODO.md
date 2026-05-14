@@ -1,13 +1,16 @@
-# TODO - MediAlertV3 FUNCIONANDO ✅
+# TODO — MediAlertV3 (Actualización)
 
-## Plan completado:
-1. ✅ Fix temporal WhatsApp (comentado en server.js + notifier.js)
-2. ✅ `node server.js` ejecutándose (DB conectada, schema OK)
-3. ✅ npm audit: 1 vuln menor ignorada (baileys protobufjs)
-4. ✅ Frontend + API accesibles `http://localhost:3000`
-5. ✅ Demo data cargada, recordatorios programados
+- [x] Fase 1.1: Crear `frontend/doctor/dashboard.html`
+- [x] Fase 1.1: Crear `frontend/js/doctor-dashboard-landing.js`
+- [x] Fase 1.1: Cambiar redirect post-login doctor en `frontend/js/main.js`
+- [x] Fase 1.1: Actualizar `actualizacion.md` checklist
+- [x] Fase 1.1: Agregar botón Dashboard al sidebar del doctor (`frontend/shared/sidebar-doctor.html`)
+- [ ] Fase 1.2: Crear `frontend/doctor/patients.html` (lista + búsqueda + filtro)
+- [ ] Fase 1.2: Crear `frontend/js/doctor-patients.js` (poblar lista, buscar, filtrar, editar)
+- [ ] Fase 1.2: Actualizar sidebar doctor para enlazar “Mis pacientes”
+- [ ] Fase 1.2: Implementar edición de paciente (nombre/email/teléfono/canal) desde la lista (modal) vía backend
+- [x] Fase 1.2: Backend: agregar endpoint `PUT /api/patients/:curp/profile` o equivalente si falta
 
-**Estado:** Server corriendo. WhatsApp deshabilitado temporal (re-activar después).
+- [x] Fase 1.2: Actualizar `actualizacion.md` checklist al terminar
 
-**Uso:** Abre `http://localhost:3000` - Login doctor1/medialert123
 

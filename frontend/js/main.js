@@ -101,7 +101,7 @@ const MediAlert = {
   },
 
   redirectByRole(role) {
-    window.location.href = role === 'doctor' ? '/doctor/register.html' : '/patient/dashboard.html';
+    window.location.href = role === 'doctor' ? '/doctor/dashboard.html' : '/patient/dashboard.html';
   },
 
   updateHeader() {

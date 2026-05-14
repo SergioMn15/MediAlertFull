@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediAlert - Panel Doctor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <header id="header-container"></header>
+
+    <div class="doctor-layout">
+      <div id="sidebar-container"></div>
+
+      <main class="main-content">
+        <div class="content-header">
+          <div>
+            <h2>Dashboard del doctor</h2>
+            <p>Métricas y accesos rápidos para tu día a día.</p>
+          </div>
+        </div>
+
+        <section class="dashboard-grid">
+          <div class="stack">
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Resumen</h2>
+                  <p>Indicadores principales asociados a tu cuenta.</p>
+                </div>
+              </div>
+
+              <div class="stats-grid">
+                <article class="stat-card">
+                  <span>Pacientes activos</span>
+                  <strong id="dashboard-active-patients">0</strong>
+                </article>
+                <article class="stat-card">
+                  <span>Recetas vigentes</span>
+                  <strong id="dashboard-active-prescriptions">0</strong>
+                </article>
+                <article class="stat-card">
+                  <span>Solicitudes pendientes</span>
+                  <strong id="dashboard-pending-requests">0</strong>
+                </article>
+              </div>
+            </section>
+
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Accesos rápidos</h2>
+                  <p>Ir directo a las tareas más comunes.</p>
+                </div>
+              </div>
+
+              <div class="feature-grid">
+                <article class="feature-card" role="button" tabindex="0" data-go="agenda.html">
+                  <div class="feature-icon"><i class="fa-solid fa-calendar-days"></i></div>
+                  <h3>Agenda</h3>
+                  <p>Ver citas y seguimiento.</p>
+                </article>
+
+                <article class="feature-card" role="button" tabindex="0" data-go="register.html">
+                  <div class="feature-icon"><i class="fa-solid fa-user-plus"></i></div>
+                  <h3>Alta de paciente</h3>
+                  <p>Registrar un nuevo paciente.</p>
+                </article>
+
+                <article class="feature-card" role="button" tabindex="0" data-go="prescriptions.html">
+                  <div class="feature-icon"><i class="fa-solid fa-file-prescription"></i></div>
+                  <h3>Recetas</h3>
+                  <p>Crear y gestionar recetas.</p>
+                </article>
+
+                <article class="feature-card" role="button" tabindex="0" data-go="expedient.html">
+                  <div class="feature-icon"><i class="fa-solid fa-notes-medical"></i></div>
+                  <h3>Expediente clínico</h3>
+                  <p>Revisar información del paciente.</p>
+                </article>
+              </div>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section>
+              <div class="content-header">
+                <div>
+                  <h2>Actividad reciente</h2>
+                  <p>Lo más relevante para ti hoy.</p>
+                </div>
+              </div>
+
+              <div id="doctor-recent-activity" class="medication-list">
+                <div class="empty-state">Cargando actividad...</div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script src="../js/api.js"></script>
+  <script src="../js/main.js"></script>
+  <script src="../js/doctor-dashboard-landing.js"></script>
+</body>
+</html>
+
