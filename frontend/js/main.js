@@ -51,14 +51,26 @@ const MediAlert = {
     });
 
     document.addEventListener('click', (event) => {
-      const navItem = event.target.closest('.nav-item');
-      if (!navItem) {
-        return;
-      }
+      // Solo navegar si el click ocurrió dentro del sidebar.
+      const sidebarContainer = document.getElementById('sidebar-container');
+      if (!sidebarContainer) return;
+      if (!event.target.closest('#sidebar-container')) return;
 
+      const navItem = event.target.closest('.nav-item');
+      if (!navItem) return;
+
+
+      // Evitar navegaciones accidentales si el botón no tiene destino
       const page = navItem.dataset.page;
+      if (!page) return;
+
+      const tab = navItem.dataset.tab;
       const base = window.location.pathname.includes('/doctor/') ? '/doctor/' : '/patient/';
-      window.location.href = `${base}${page}`;
+
+      // Solo navegar si el click viene de un <button>
+      if (navItem.tagName?.toLowerCase() !== 'button') return;
+
+      window.location.href = tab ? `${base}${page}?tab=${encodeURIComponent(tab)}` : `${base}${page}`;
     });
   },
 
@@ -177,4 +189,7 @@ window.MediAlertMain = MediAlert;
 
 document.addEventListener('DOMContentLoaded', () => {
   MediAlert.init();
+
 });
+
+

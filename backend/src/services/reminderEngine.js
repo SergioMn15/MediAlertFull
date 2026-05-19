@@ -101,7 +101,7 @@ if (!activePrescription?.items?.length) {
         prescription_id: activePrescription.id,
         name: item.name,
         dose_mg: item.dose_mg,
-        emoji: item.emoji || '💊',
+        emoji: item.emoji || '',
         frequency: item.frequency || `Cada ${resolveIntervalHours(item)} horas`,
         interval_hours: resolveIntervalHours(item),
         scheduled_at: candidate.toISOString(),

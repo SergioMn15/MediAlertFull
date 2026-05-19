@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MediAlert - Recetas Médicas</title>
+  <title>MediAlert - Recetas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,104 +22,104 @@
       <main class="main-content">
         <div class="content-header">
           <div>
-            <h2>Recetas Médicas</h2>
-            <p>Control total: listar, editar, pausar, eliminar. Filtra por paciente/estado.</p>
-          </div>
-          <div class="content-actions">
-            <input type="text" id="search-prescriptions" placeholder="Buscar por paciente o diagnóstico...">
-            <select id="status-filter">
-              <option value="">Todos los estados</option>
-              <option value="active">Activas</option>
-              <option value="requested">Solicitudes</option>
-              <option value="completed">Completadas</option>
-              <option value="deleted">Eliminadas</option>
-            </select>
+            <h2>Recetas</h2>
+            <p>Editar, pausar y eliminar recetas del doctor.</p>
           </div>
         </div>
 
-        <section class="stats-grid">
-          <article class="stat-card">
-            <span>Recetas totales</span>
-            <strong id="total-prescriptions">0</strong>
-          </article>
-          <article class="stat-card">
-            <span>Activas</span>
-            <strong id="active-prescriptions">0</strong>
-          </article>
-          <article class="stat-card">
-            <span>Pausadas</span>
-            <strong id="paused-prescriptions">0</strong>
-          </article>
-          <article class="stat-card">
-            <span>Solicitudes pendientes</span>
-            <strong id="pending-requests">0</strong>
-          </article>
-        </section>
+        <section>
+          <div class="content-actions">
+            <div class="filter-box" style="min-width: 260px;">
+              <label class="filter-label" for="search-prescriptions">Buscar</label>
+              <input id="search-prescriptions" type="text" placeholder="Paciente o receta..." style="width: 100%;" />
+            </div>
 
-        <section class="dashboard-grid">
-          <div class="stack">
-            <div id="prescription-list" class="compact-list-container">
-              <div class="loading">Cargando recetas...</div>
+            <div class="filter-box">
+              <label class="filter-label" for="status-filter">Estado</label>
+              <select id="status-filter" style="width: 100%;">
+                <option value="">Todos</option>
+                <option value="active">Activa</option>
+                <option value="requested">Solicitud pendiente</option>
+                <option value="paused">Pausada</option>
+              </select>
             </div>
           </div>
         </section>
 
-        <!-- Panel de control de notificaciones -->
-        <section id="notification-panel" class="dashboard-grid hidden">
-          <div class="stack">
-            <article class="form-card">
-              <div class="content-header">
-                <div>
-                  <h2>Control de notificaciones</h2>
-                  <p id="notification-panel-meta">Selecciona una receta activa para gestionar sus notificaciones.</p>
-                </div>
-                <button id="close-notification-panel" class="btn btn-outline btn-small" type="button">Cerrar</button>
-              </div>
-              <div id="notification-panel-content">
-                <div class="empty-state">Cargando medicamentos...</div>
-              </div>
+        <section style="margin-top: 14px;">
+          <div class="stats-grid">
+            <article class="stat-card">
+              <span>Total</span>
+              <strong id="total-prescriptions">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Activas</span>
+              <strong id="active-prescriptions">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Pausadas</span>
+              <strong id="paused-prescriptions">0</strong>
+            </article>
+            <article class="stat-card">
+              <span>Pendientes</span>
+              <strong id="pending-requests">0</strong>
             </article>
           </div>
         </section>
 
-        <!-- Modal Editar -->
-        <div id="edit-prescription-modal" class="modal" style="display: none;">
-          <div class="modal-content modal-large">
-            <div class="modal-header">
-              <h3 id="edit-modal-title">Editar Receta</h3>
-              <button class="close-modal" type="button" aria-label="Cerrar"><i class="fa-solid fa-times"></i></button>
-            </div>
-            <form id="edit-prescription-form">
-              <input type="hidden" id="edit-prescription-id">
-              <div class="form-group">
-                <label>Paciente</label>
-                <input type="text" id="edit-patient-name" readonly class="form-control">
-              </div>
-              <div class="form-group">
-                <label>Diagnóstico</label>
-                <textarea id="edit-diagnosis" rows="2" class="form-control"></textarea>
-              </div>
-              <div class="form-group">
-                <label>Indicaciones generales</label>
-                <textarea id="edit-general-instructions" rows="3" class="form-control"></textarea>
-              </div>
-              <div class="form-group">
-                <label>Medicamentos</label>
-                <div id="edit-medications-list" class="edit-medications-container"></div>
-                <button type="button" id="add-edit-medication" class="btn btn-outline btn-small">
-                  <i class="fa-solid fa-plus"></i> Agregar medicamento
-                </button>
-              </div>
-              <div class="form-actions">
-                <button type="button" class="btn btn-secondary close-modal-btn">Cancelar</button>
-                <button type="submit" class="btn btn-primary">
-                  <i class="fa-solid fa-save"></i> Guardar cambios
-                </button>
-              </div>
-            </form>
+        <section style="margin-top: 14px;">
+          <div id="prescription-list" class="medication-list">
+            <div class="empty-state">Cargando recetas...</div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal de edición (requerido por doctor-dashboard.js) -->
+  <div id="edit-prescription-modal" class="modal-overlay hidden" aria-hidden="true">
+    <div class="modal-card modal-card-wide">
+      <div class="content-header">
+        <div>
+          <h2>Editar receta</h2>
+          <p>Actualiza diagnostico, indicaciones y medicamentos.</p>
+        </div>
+        <button class="btn btn-outline btn-small close-modal" type="button">Cerrar</button>
+      </div>
+
+      <form id="edit-prescription-form" class="modal-form">
+        <input type="hidden" id="edit-prescription-id" />
+
+        <div class="form-group">
+          <label for="edit-patient-name">Paciente</label>
+          <input id="edit-patient-name" type="text" disabled />
+        </div>
+
+        <div class="form-group">
+          <label for="edit-diagnosis">Diagnostico</label>
+          <textarea id="edit-diagnosis" rows="2" placeholder="Diagnostico"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-general-instructions">Indicaciones generales</label>
+          <textarea id="edit-general-instructions" rows="3" placeholder="Indicaciones"></textarea>
+        </div>
+
+        <div class="content-header" style="margin-top: 0;">
+          <div>
+            <h2>Medicamentos</h2>
+            <p>Edita cada medicamento.</p>
           </div>
         </div>
-      </main>
+
+        <div id="edit-medications-container">
+          <div id="edit-medications-list"></div>
+        </div>
+
+        <div class="pill-row">
+          <button type="button" id="add-edit-medication" class="btn btn-outline">Agregar medicamento</button>
+          <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>\n      </form>
     </div>
   </div>
 
@@ -128,4 +128,5 @@
   <script src="../js/doctor-dashboard.js"></script>
 </body>
 </html>
+
 

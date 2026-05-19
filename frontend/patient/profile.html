@@ -64,6 +64,78 @@
             <article id="next-appointment-card" class="info-card"></article>
           </div>
         </section>
+
+        <section class="dashboard-grid" style="margin-top: 1rem;">
+          <div class="stack">
+            <article class="form-card">
+              <div class="content-header">
+                <div>
+                  <h2>Configuración de cuenta</h2>
+                  <p>Actualiza tus datos personales y el canal de notificaciones.</p>
+                </div>
+              </div>
+
+              <form id="patient-profile-form">
+                <div class="form-group">
+                  <label for="profile-name-input">Nombre</label>
+                  <input id="profile-name-input" type="text" placeholder="Tu nombre completo" />
+                </div>
+                <div class="form-group">
+                  <label for="profile-email-input">Correo electrónico</label>
+                  <input id="profile-email-input" type="email" placeholder="correo@ejemplo.com" />
+                </div>
+                <div class="form-group">
+                  <label for="profile-phone-input">Teléfono</label>
+                  <input id="profile-phone-input" type="tel" placeholder="55 1234 5678" />
+                </div>
+                <div class="form-group">
+                  <label for="profile-channel-input">Canal de notificaciones</label>
+                  <select id="profile-channel-input">
+                    <option value="email">Correo electrónico</option>
+                    <option value="sms">SMS</option>
+                    <option value="whatsapp">WhatsApp</option>
+                  </select>
+                </div>
+
+                <div class="pill-row">
+                  <button type="submit" class="btn btn-primary">Guardar perfil</button>
+                </div>
+                <p id="profile-update-result" class="form-message"></p>
+              </form>
+            </article>
+          </div>
+
+          <div class="stack">
+            <article class="form-card">
+              <div class="content-header">
+                <div>
+                  <h2>Cambiar contraseña</h2>
+                  <p>Protege tu cuenta con una nueva contraseña.</p>
+                </div>
+              </div>
+
+              <form id="patient-password-form">
+                <div class="form-group">
+                  <label for="current-password">Contraseña actual</label>
+                  <input id="current-password" type="password" autocomplete="current-password" />
+                </div>
+                <div class="form-group">
+                  <label for="new-password">Nueva contraseña</label>
+                  <input id="new-password" type="password" autocomplete="new-password" />
+                </div>
+                <div class="form-group">
+                  <label for="confirm-password">Confirmar nueva contraseña</label>
+                  <input id="confirm-password" type="password" autocomplete="new-password" />
+                </div>
+
+                <div class="pill-row">
+                  <button type="submit" class="btn btn-outline">Cambiar contraseña</button>
+                </div>
+                <p id="password-update-result" class="form-message"></p>
+              </form>
+            </article>
+          </div>
+        </section>
       </main>
     </div>
   </div>

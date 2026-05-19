@@ -77,7 +77,7 @@ async function processDatabaseReminders(app) {
         duration_days: row.duration_days,
         interval_hours: row.interval_hours,
         notes: row.notes,
-        emoji: row.emoji || '💊'
+        emoji: row.emoji || ''
       };
 
       const scheduledAt = getLatestDueReminderAt(item, row.issued_at, now);
@@ -153,7 +153,7 @@ function startReminderScheduler(app) {
 
   const isEnabled = process.env.REMINDER_SCHEDULER_ENABLED === 'true';
   if (!isEnabled) {
-    console.log('✅ Scheduler desactivado (usa REMINDER_SCHEDULER_ENABLED=true)');
+    console.log('Scheduler desactivado (usa REMINDER_SCHEDULER_ENABLED=true)');
     app.set('reminderSchedulerStarted', true);
     return;
   }
@@ -182,7 +182,7 @@ function startReminderScheduler(app) {
   if (typeof timer.unref === 'function') timer.unref();
 
   app.set('reminderSchedulerStarted', true);
-  console.log('✅ Scheduler activo cada 30s');
+  console.log('Scheduler activo cada 30s');
   runTick();
 }
 

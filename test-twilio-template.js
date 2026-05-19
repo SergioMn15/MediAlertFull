@@ -13,7 +13,7 @@ client.messages.create({
      }),
      to: 'whatsapp:+5213123176770'
    })
-   .then(message => console.log('✅ WhatsApp enviado:', message.sid))
+   .then(message => console.log('WhatsApp enviado:', message.sid))
    .catch(error => console.error('❌ Error:', error.message))
    .done();
 

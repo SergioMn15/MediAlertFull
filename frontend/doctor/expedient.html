@@ -51,6 +51,26 @@
               </div>
             </section>
 
+            <section class="detail-panel">
+              <div class="content-header">
+                <div>
+                  <h2>Últimas 3 recetas</h2>
+                  <p>Resumen de recetas recientes para este paciente.</p>
+                </div>
+              </div>
+              <div id="doctor-prescription-history-preview" class="compact-list"></div>
+            </section>
+
+            <section class="detail-panel">
+              <div class="content-header">
+                <div>
+                  <h2>Receta activa</h2>
+                  <p>Medicamentos vigentes y estado actual del paciente.</p>
+                </div>
+              </div>
+              <div id="doctor-medication-list" class="compact-list"></div>
+            </section>
+
             <section>
               <div class="content-header">
                 <div>
@@ -81,6 +101,17 @@
                 <div>
                   <h2>Perfil clinico</h2>
                   <p>Alergias, antecedentes y notas medicas del paciente.</p>
+                </div>
+              </div>
+              <div id="clinical-profile-card" class="info-card hidden">
+                <div class="profile-card-row">
+                  <div>
+                    <strong>Perfil clínico guardado</strong>
+                    <p id="clinical-profile-card-allergies"></p>
+                    <p id="clinical-profile-card-history"></p>
+                    <p id="clinical-profile-card-notes"></p>
+                  </div>
+                  <button id="edit-clinical-profile" class="btn btn-outline btn-small" type="button">Editar</button>
                 </div>
               </div>
               <form id="clinical-profile-form">

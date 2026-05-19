@@ -1,11 +1,11 @@
-# 📋 Plan de Actualización — MediAlertV3
+# Plan de Actualización — MediAlertV3
 
 > Última revisión: 2026-05-12  
-> Estado general: **En progreso** 🔄
+> Estado general: **En progreso**
 
 ---
 
-## ✅ Fase 0 — Pulido visual inicial *(completado)*
+## Fase 0 — Pulido visual inicial *(completado)*
 
 > Nota: `actualizacion.md` está guardado con codificación que puede verse como “mojibake” (caracteres raros) si tu editor no interpreta UTF-8. Si pasa en VSCode, verifica **Guardar con codificación: UTF-8**.
 
@@ -44,10 +44,11 @@ Reestructurar lo que ya existe para que sea más intuitivo.
 
 
 ### 1.3 Recetas — Fusionar dos páginas en una
-- [ ] Unificar `prescriptions.html` (crear) y `recetas.html` (gestionar) en una sola página con pestañas
-- [ ] Pestaña "Nueva receta" = formulario actual de `prescriptions.html`
-- [ ] Pestaña "Gestionar recetas" = tabla/lista actual de `recetas.html`
+- [x] Unificar `prescriptions.html` (crear) y `recetas.html` (gestionar) en una sola página con pestañas
+- [x] Pestaña "Nueva receta" = formulario actual de `prescriptions.html`
+- [x] Pestaña "Gestionar recetas" = tabla/lista actual de `recetas.html`
 - [ ] Actualizar sidebar y nav para apuntar a la página unificada
+
 
 ### 1.4 Sidebar doctor — Reorganizar y agrupar
 - [ ] Agregar `Dashboard` como primer ítem
@@ -131,7 +132,7 @@ Reestructurar lo que ya existe para que sea más intuitivo.
 
 | Fase | Descripción | Estado |
 |------|-------------|--------|
-| 0 | Pulido visual inicial | ✅ Completado |
+| 0 | Pulido visual inicial | Completado |
 | 1 | Reorganización de módulos | ⬜ Pendiente |
 | 2 | Nuevos módulos — Doctor | ⬜ Pendiente |
 | 3 | Nuevos módulos — Paciente | ⬜ Pendiente |

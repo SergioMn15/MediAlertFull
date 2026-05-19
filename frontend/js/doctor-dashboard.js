@@ -336,6 +336,7 @@ async function initDoctorPage() {
             }
           }
           
+          modal.classList.add('hidden');
           modal.style.display = 'none';
           form.reset();
           medicationsList.innerHTML = '';
@@ -429,7 +430,8 @@ async function initDoctorPage() {
         };
 
         // Mostrar modal
-        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+        modal.style.display = '';
 
       } catch (err) {
         console.error('Error abriendo modal edit:', err);
@@ -1302,6 +1304,21 @@ async function initDoctorPage() {
       const curp = event.target.value;
       await loadSelectedPatientPrescription(curp);
     });
+
+    // If the select is empty when user interacts, fetch patients on demand
+    const ensurePatientsLoaded = async () => {
+      try {
+        if (cachedPatients && cachedPatients.length > 0) return;
+        const resp = await window.MediAlertAPI.getPatients();
+        cachedPatients = resp.patients || resp || [];
+        populatePatientSelect(selector, cachedPatients, selector.value || '');
+      } catch (err) {
+        console.error('No se pudieron cargar los pacientes:', err);
+      }
+    };
+
+    selector.addEventListener('focus', ensurePatientsLoaded);
+    selector.addEventListener('click', ensurePatientsLoaded);
   }
 
   async function loadSelectedPatientPrescription(curp) {
@@ -1702,6 +1719,99 @@ async function initDoctorPage() {
     const notes = document.getElementById('clinical-notes');
     const result = document.getElementById('clinical-profile-result');
 
+    const profileCard = document.getElementById('clinical-profile-card');
+    const profileForm = document.getElementById('clinical-profile-form');
+    const editButton = document.getElementById('edit-clinical-profile');
+
+    const hasProfileData = Boolean(
+      patient?.allergies || patient?.medical_history || patient?.doctor_notes
+    );
+
+    if (allergies) {
+      allergies.value = patient?.allergies || '';
+    }
+    if (history) {
+      history.value = patient?.medical_history || '';
+    }
+    if (notes) {
+      notes.value = patient?.doctor_notes || '';
+    }
+    if (result) {
+      result.textContent = '';
+      result.className = 'form-message';
+    }
+
+    if (profileCard) {
+      if (hasProfileData) {
+        profileCard.classList.remove('hidden');
+        const allergiesText = document.getElementById('clinical-profile-card-allergies');
+        const historyText = document.getElementById('clinical-profile-card-history');
+        const notesText = document.getElementById('clinical-profile-card-notes');
+        if (allergiesText) {
+          allergiesText.textContent = `Alergias: ${patient.allergies || 'Sin datos'}`;
+        }
+        if (historyText) {
+          historyText.textContent = `Antecedentes: ${patient.medical_history || 'Sin datos'}`;
+        }
+        if (notesText) {
+          notesText.textContent = `Notas: ${patient.doctor_notes || 'Sin datos'}`;
+        }
+        if (profileForm) {
+          profileForm.classList.add('hidden');
+        }
+      } else {
+        profileCard.classList.add('hidden');
+        if (profileForm) {
+          profileForm.classList.remove('hidden');
+        }
+      }
+    }
+
+    if (editButton) {
+      editButton.onclick = () => {
+        if (profileCard) {
+          profileCard.classList.add('hidden');
+        }
+        if (profileForm) {
+          profileForm.classList.remove('hidden');
+        }
+      };
+    }
+
+
+  function renderClinicalProfileCard(patient) {
+    const profileCard = document.getElementById('clinical-profile-card');
+    const profileForm = document.getElementById('clinical-profile-form');
+    const hasProfileData = Boolean(
+      patient?.allergies || patient?.medical_history || patient?.doctor_notes
+    );
+
+    if (!profileCard || !profileForm) {
+      return;
+    }
+
+    if (!hasProfileData) {
+      profileCard.classList.add('hidden');
+      profileForm.classList.remove('hidden');
+      return;
+    }
+
+    profileCard.classList.remove('hidden');
+    profileForm.classList.add('hidden');
+
+    const allergiesText = document.getElementById('clinical-profile-card-allergies');
+    const historyText = document.getElementById('clinical-profile-card-history');
+    const notesText = document.getElementById('clinical-profile-card-notes');
+    if (allergiesText) {
+      allergiesText.textContent = `Alergias: ${patient.allergies || 'Sin datos'}`;
+    }
+    if (historyText) {
+      historyText.textContent = `Antecedentes: ${patient.medical_history || 'Sin datos'}`;
+    }
+    if (notesText) {
+      notesText.textContent = `Notas: ${patient.doctor_notes || 'Sin datos'}`;
+    }
+  }
     if (allergies) {
       allergies.value = patient?.allergies || '';
     }

@@ -3,86 +3,93 @@
   let selectedPrescriptionId = null;
   let currentReminder = null;
 
-async function initPatientPage() {
+  async function initPatientPage() {
     const app = window.MediAlertMain;
-    if (!window.location.pathname.includes('/patient/')) {
-      return;
-    }
+    if (!window.location.pathname.includes('/patient/')) return;
+
     if (!app?.state?.user) {
       app?.logout(false);
       return;
     }
 
-    if (!app.requireRole('patient')) {
-      return;
-    }
+    if (!app.requireRole('patient')) return;
 
     try {
       const response = await window.MediAlertAPI.getPatientData(app.state.user.curp);
       const patient = response.patient;
+
       currentPatient = patient;
-      selectedPrescriptionId = patient.active_prescription?.id || patient.prescriptions_history?.[0]?.id || null;
+      selectedPrescriptionId =
+        patient.active_prescription?.id || patient.prescriptions_history?.[0]?.id || null;
 
       renderSidebar(patient);
       renderDashboard(patient);
       renderRecipeHistory(patient);
       renderSelectedRecipe(patient);
       renderProfile(patient);
+      bindProfileForms(patient);
+
       bindAppointmentForm(patient);
       bindRecipeHistory();
       bindRecipePrint();
-      bindReminderActions(patient);
-      bindRecetasPage(); // Nueva logica /recetas.html
-      bindRecipeRequestForm(); // Nueva /recipe.html solo request
+      bindRecetasPage();
+      bindRecipeRequestForm();
+
       await loadTodayReminders(patient.curp);
     } catch (error) {
-      app.showToast(error.message, 'error');
+      window.MediAlertMain?.showToast?.(error.message, 'error');
     }
   }
 
+  function getMedicationIconClass(emoji) {
+    const map = {
+      '🩺': 'fa-stethoscope',
+      '💊': 'fa-capsules'
+    };
+    return map[emoji] || 'fa-capsules';
+  }
+
+  function renderMedicationIcon(item) {
+    const iconClass = getMedicationIconClass(item?.emoji);
+    return `<i class="fa-solid ${iconClass}" aria-hidden="true"></i>`;
+  }
+
+  // /patient/recetas.html (paciente)
   function bindRecetasPage() {
     if (!window.location.pathname.includes('recetas.html')) return;
 
     const container = document.getElementById('recipe-list-container');
-    const stats = {
-      total: document.getElementById('total-recipes-stat'),
-      active: document.getElementById('active-recipes-stat'),
-      meds: document.getElementById('active-meds-stat'),
-    };
-    const searchInput = document.getElementById('recipe-search');
-    const statusFilter = document.getElementById('recipe-status-filter');
+    if (!container) return;
+
     const detailModal = document.getElementById('recipe-detail-modal');
     const modalTitle = document.getElementById('recipe-detail-title');
     const modalBody = document.getElementById('recipe-detail-body');
     const closeModalBtn = document.querySelector('#recipe-detail-modal .close-modal');
 
-    if (!container) return;
+    const searchInput = document.getElementById('recipe-search');
+    const statusFilter = document.getElementById('recipe-status-filter');
+
+    function getRecetasSource() {
+      return (currentPatient?.prescriptions_history || []).slice();
+    }
 
     async function loadRecetas(search = '', status = '') {
       container.innerHTML = '<div class="loading">Cargando recetas...</div>';
       try {
-        const prescriptions = await window.MediAlertAPI.getPatientPrescriptions(currentPatient.curp);
-        renderRecetasList(prescriptions.prescriptions.filter(p => !p.deleted_at), search, status);
-        updateRecetasStats(prescriptions.prescriptions);
-      } catch (error) {
-        container.innerHTML = `<div class="empty-state">${error.message || 'No se pudieron cargar las recetas'}</div>`;
-      }
-    }
+        const recetas = getRecetasSource().filter((p) => !p.deleted_at);
+        const filtered = recetas.filter((r) => {
+          const bySearch =
+            !search ||
+            r.id.toString().includes(search) ||
+            (r.diagnosis || '').toLowerCase().includes(search.toLowerCase());
+          const byStatus = !status ? true : r.status === status;
+          return bySearch && byStatus;
+        });
 
-    function renderRecetasList(recetas, search, status) {
-      let filtered = recetas.slice();
-      if (search) {
-        filtered = filtered.filter(r => 
-          r.id.toString().includes(search) || 
-          (r.diagnosis || '').toLowerCase().includes(search.toLowerCase())
-        );
-      }
-      if (status) {
-        filtered = filtered.filter(r => r.status === status);
-      }
-
-      container.innerHTML = filtered.length
-        ? filtered.map(recipe => `
+        container.innerHTML = filtered.length
+          ? filtered
+              .map(
+                (recipe) => `
             <article class="recipe-card" data-recipe-id="${recipe.id}">
               <div class="content-header">
                 <div>
@@ -91,7 +98,9 @@ async function initPatientPage() {
                   ${recipe.doctor_name ? `<p>Doctor: ${escapeHtml(recipe.doctor_name)}</p>` : ''}
                 </div>
                 <span class="status-badge ${recipe.status === 'active' ? 'scheduled' : 'pending'}">
-                  ${recipe.status === 'active' ? 'Activa' : recipe.status.charAt(0).toUpperCase() + recipe.status.slice(1)}
+                  ${recipe.status === 'active'
+                    ? 'Activa'
+                    : recipe.status.charAt(0).toUpperCase() + recipe.status.slice(1)}
                 </span>
               </div>
               <div class="recipe-body">
@@ -99,80 +108,102 @@ async function initPatientPage() {
                 ${recipe.general_instructions ? `<p><strong>Indicaciones:</strong> ${escapeHtml(recipe.general_instructions)}</p>` : ''}
                 <p>${recipe.items?.length || 0} medicamentos</p>
               </div>
-              <button class="btn btn-primary" onclick="openRecipeDetail(${recipe.id})">
+              <button class="btn btn-primary" type="button" data-action="open-recipe" data-recipe-id-btn="${recipe.id}">
                 Ver detalle
               </button>
             </article>
-          `).join('')
-        : '<div class="empty-state">No hay recetas que coincidan con tu busqueda.</div>';
+          `
+              )
+              .join('')
+          : '<div class="empty-state">No hay recetas que coincidan con tu busqueda.</div>';
+
+        const total = document.getElementById('total-recipes-stat');
+        const active = document.getElementById('active-recipes-stat');
+        const meds = document.getElementById('active-meds-stat');
+
+        if (total) total.textContent = filtered.length;
+        if (active) active.textContent = filtered.filter((r) => r.status === 'active').length;
+        if (meds)
+          meds.textContent = filtered
+            .filter((r) => r.status === 'active')
+            .reduce((sum, r) => sum + (r.items?.length || 0), 0);
+
+        container.querySelectorAll('[data-action="open-recipe"]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const rid = Number(btn.dataset.recipeIdBtn);
+            if (!Number.isNaN(rid)) openRecipeDetail(rid);
+          });
+        });
+      } catch (error) {
+        container.innerHTML = `<div class="empty-state">${escapeHtml(error.message || 'No se pudieron cargar las recetas')}</div>`;
+      }
     }
 
-    function updateRecetasStats(recetas) {
-      if (stats.total) stats.total.textContent = recetas.length;
-      if (stats.active) stats.active.textContent = recetas.filter(r => r.status === 'active').length;
-      const activeMeds = recetas.filter(r => r.status === 'active').reduce((sum, r) => sum + (r.items?.length || 0), 0);
-      if (stats.meds) stats.meds.textContent = activeMeds;
+    function openRecipeDetail(recipeId) {
+      if (!currentPatient) return;
+
+      const recipe = (currentPatient.prescriptions_history || []).find((r) => r.id == recipeId);
+      if (!recipe) {
+        window.MediAlertMain?.showToast?.('Receta no encontrada', 'error');
+        return;
+      }
+
+      modalTitle.textContent = `Receta #${recipe.id}`;
+      modalBody.innerHTML = `
+        <div class="recipe-detail-header">
+          <div class="recipe-doctor-info">
+            <strong>${escapeHtml(recipe.doctor_name || 'Doctor')}</strong>
+            <p>${formatDateTime(recipe.issued_at)}</p>
+            <span class="status-badge ${recipe.status === 'active' ? 'scheduled' : 'pending'}">${recipe.status}</span>
+          </div>
+        </div>
+        ${recipe.diagnosis ? `<p><strong>Diagnóstico:</strong> ${escapeHtml(recipe.diagnosis)}</p>` : ''}
+        ${recipe.general_instructions ? `<p><strong>Indicaciones:</strong> ${escapeHtml(recipe.general_instructions)}</p>` : ''}
+        <div class="medications-grid">
+          ${
+            recipe.items
+              ?.map(
+                (item) => `
+                <article class="med-card">
+                  <div>
+                    <strong>${renderMedicationIcon(item)} ${escapeHtml(item.name)}</strong>
+                    <div class="med-meta">${item.dose_mg}mg · ${formatTime(item.time)}</div>
+                    <p>${escapeHtml(item.notes || 'Sin notas')}</p>
+                    ${item.notifications_paused ? '<span class="status-badge paused">Notificaciones pausadas</span>' : ''}
+                  </div>
+                </article>
+              `
+              )
+              .join('') || '<div class="empty-state">Sin medicamentos en esta receta</div>'
+          }
+        </div>
+      `;
+
+      if (detailModal) detailModal.style.display = 'block';
     }
+
+    closeModalBtn?.addEventListener('click', () => {
+      if (detailModal) detailModal.style.display = 'none';
+    });
+
+    detailModal?.addEventListener('click', (e) => {
+      if (e.target === detailModal && detailModal) detailModal.style.display = 'none';
+    });
 
     function bindSearchFilter() {
       let timeout;
-      searchInput?.addEventListener('input', e => {
+      searchInput?.addEventListener('input', (e) => {
         clearTimeout(timeout);
         timeout = setTimeout(() => loadRecetas(e.target.value, statusFilter?.value), 300);
       });
-      statusFilter?.addEventListener('change', e => loadRecetas(searchInput?.value || '', e.target.value));
+      statusFilter?.addEventListener('change', (e) => loadRecetas(searchInput?.value || '', e.target.value));
     }
 
     bindSearchFilter();
     loadRecetas();
-
-    // Modal detail
-    window.openRecipeDetail = async (recipeId) => {
-      try {
-        const response = await window.MediAlertAPI.getPatientData(currentPatient.curp);
-        const recipe = response.patient.prescriptions_history.find(r => r.id == recipeId);
-        if (!recipe) throw new Error('Receta no encontrada');
-        
-        modalTitle.textContent = `Receta #${recipe.id}`;
-        modalBody.innerHTML = `
-          <div class="recipe-detail-header">
-            <div class="recipe-doctor-info">
-              <strong>${escapeHtml(recipe.doctor_name || 'Doctor')}</strong>
-              <p>${formatDateTime(recipe.issued_at)}</p>
-              <span class="status-badge ${recipe.status === 'active' ? 'scheduled' : 'pending'}">${recipe.status}</span>
-            </div>
-          </div>
-          ${recipe.diagnosis ? `<p><strong>Diagnóstico:</strong> ${escapeHtml(recipe.diagnosis)}</p>` : ''}
-          ${recipe.general_instructions ? `<p><strong>Indicaciones:</strong> ${escapeHtml(recipe.general_instructions)}</p>` : ''}
-          <div class="medications-grid">
-            ${recipe.items?.map(item => `
-              <article class="med-card">
-                <div>
-                  <strong>${escapeHtml(item.emoji || '💊')} ${escapeHtml(item.name)}</strong>
-                  <div class="med-meta">${item.dose_mg}mg · ${formatTime(item.time)}</div>
-                  <p>${escapeHtml(item.notes || 'Sin notas')}</p>
-                  ${item.notifications_paused ? '<span class="status-badge paused">Notificaciones pausadas</span>' : ''}
-                </div>
-              </article>
-            `).join('') || '<div class="empty-state">Sin medicamentos en esta receta</div>'}
-          </div>
-        `;
-        detailModal.style.display = 'block';
-      } catch (error) {
-        window.MediAlertMain.showToast(error.message, 'error');
-      }
-    };
-
-    closeModalBtn?.addEventListener('click', () => detailModal.style.display = 'none');
-    detailModal.addEventListener('click', e => {
-      if (e.target === detailModal) detailModal.style.display = 'none';
-    });
-
-    document.getElementById('download-recipe-pdf')?.addEventListener('click', () => {
-      window.MediAlertMain.showToast('Descarga PDF próximamente disponible', 'info');
-    });
   }
 
+  // /patient/recipe.html
   function bindRecipeRequestForm() {
     if (!window.location.pathname.includes('recipe.html')) return;
 
@@ -180,8 +211,9 @@ async function initPatientPage() {
     if (!form || form.dataset.bound === 'true') return;
 
     form.dataset.bound = 'true';
-    form.addEventListener('submit', async e => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
+
       const symptoms = document.getElementById('symptoms-input')?.value.trim() || '';
       const notes = document.getElementById('notes-input')?.value.trim() || '';
       const result = document.getElementById('recipe-request-result');
@@ -197,11 +229,11 @@ async function initPatientPage() {
           result.textContent = 'Solicitud enviada al doctor. Te notificaremos pronto.';
           result.className = 'form-message success';
         }
-        window.MediAlertMain.showToast('Solicitud de receta enviada', 'success');
+        window.MediAlertMain?.showToast?.('Solicitud de receta enviada', 'success');
         form.reset();
       } catch (error) {
         if (result) result.textContent = error.message;
-        window.MediAlertMain.showToast(error.message, 'error');
+        window.MediAlertMain?.showToast?.(error.message, 'error');
       }
     });
   }
@@ -215,7 +247,7 @@ async function initPatientPage() {
     const medications = patient.medications || [];
     const appointments = patient.appointments || [];
     const requests = patient.appointment_requests || [];
-    const activePrescription = patient.active_prescription;
+
     const nextMedication = medications[0];
     const nextAppointment = appointments
       .slice()
@@ -231,7 +263,7 @@ async function initPatientPage() {
       nextMedicationCard.innerHTML = nextMedication
         ? `
           <div>
-            <strong>${nextMedication.emoji || '💊'} ${escapeHtml(nextMedication.name)}</strong>
+            <strong>${renderMedicationIcon(nextMedication)} ${escapeHtml(nextMedication.name)}</strong>
             <div class="med-meta">${nextMedication.dose_mg} mg a las ${formatTime(nextMedication.time)}</div>
             <p>${escapeHtml(nextMedication.notes || 'Sin observaciones.')}</p>
             ${nextMedication.frequency ? `<p><strong>Frecuencia:</strong> ${escapeHtml(nextMedication.frequency)}</p>` : ''}
@@ -257,22 +289,28 @@ async function initPatientPage() {
     const recentList = document.getElementById('recent-medications');
     if (recentList) {
       recentList.innerHTML = medications.length
-        ? medications.map((medication) => `
+        ? medications
+            .map(
+              (medication) => `
             <article class="med-card">
               <div>
-                <strong>${medication.emoji || '💊'} ${escapeHtml(medication.name)}</strong>
+                <strong>${renderMedicationIcon(medication)} ${escapeHtml(medication.name)}</strong>
                 <div class="med-meta">${medication.dose_mg} mg · ${formatTime(medication.time)}</div>
                 <p>${escapeHtml(medication.notes || 'Sin notas')}</p>
               </div>
             </article>
-          `).join('')
+          `
+            )
+            .join('')
         : emptyState('Aun no tienes receta activa');
     }
 
     const appointmentList = document.getElementById('appointment-list');
     if (appointmentList) {
       appointmentList.innerHTML = appointments.length
-        ? appointments.map((item) => `
+        ? appointments
+            .map(
+              (item) => `
             <article class="appointment-card">
               <div>
                 <strong>${formatDate(item.date)}</strong>
@@ -280,14 +318,18 @@ async function initPatientPage() {
               </div>
               <span class="status-badge scheduled">${escapeHtml(item.status || 'scheduled')}</span>
             </article>
-          `).join('')
+          `
+            )
+            .join('')
         : emptyState('Sin citas pendientes');
     }
 
     const requestList = document.getElementById('appointment-request-list');
     if (requestList) {
       requestList.innerHTML = requests.length
-        ? requests.map((item) => `
+        ? requests
+            .map(
+              (item) => `
             <article class="appointment-card">
               <div>
                 <strong>${formatDate(item.requested_date)}</strong>
@@ -297,20 +339,22 @@ async function initPatientPage() {
               </div>
               <span class="status-badge ${item.status || 'pending'}">${formatRequestStatus(item.status)}</span>
             </article>
-          `).join('')
+          `
+            )
+            .join('')
         : emptyState('Aun no has enviado solicitudes de cita');
     }
   }
 
   function renderRecipeHistory(patient) {
     const historyList = document.getElementById('recipe-history-list');
-    if (!historyList) {
-      return;
-    }
+    if (!historyList) return;
 
     const history = patient.prescriptions_history || [];
     historyList.innerHTML = history.length
-      ? history.map((prescription) => `
+      ? history
+          .map(
+            (prescription) => `
           <button class="recipe-history-card ${prescription.id === selectedPrescriptionId ? 'active' : ''}" type="button" data-prescription-id="${prescription.id}">
             <div>
               <strong>Receta #${prescription.id}</strong>
@@ -318,18 +362,23 @@ async function initPatientPage() {
               <p><strong>Diagnostico:</strong> ${escapeHtml(prescription.diagnosis || 'Sin diagnostico')}</p>
               <p>${prescription.items?.length || 0} medicamento(s)</p>
             </div>
-            <span class="status-badge ${prescription.status === 'active' ? 'scheduled' : 'pending'}">${prescription.status === 'active' ? 'Activa' : 'Anterior'}</span>
+            <span class="status-badge ${prescription.status === 'active' ? 'scheduled' : 'pending'}">${
+              prescription.status === 'active' ? 'Activa' : 'Anterior'
+            }</span>
           </button>
-        `).join('')
+        `
+          )
+          .join('')
       : emptyState('Aun no tienes historial de recetas.');
   }
 
   function renderSelectedRecipe(patient) {
     const history = patient.prescriptions_history || [];
-    const selectedPrescription = history.find((prescription) => prescription.id === selectedPrescriptionId)
-      || patient.active_prescription
-      || history[0]
-      || null;
+    const selectedPrescription =
+      history.find((prescription) => prescription.id === selectedPrescriptionId) ||
+      patient.active_prescription ||
+      history[0] ||
+      null;
 
     const title = document.getElementById('recipe-title');
     const doctor = document.getElementById('recipe-doctor');
@@ -338,29 +387,15 @@ async function initPatientPage() {
     const instructions = document.getElementById('recipe-instructions');
     const list = document.getElementById('medication-list');
 
-    if (title) {
-      title.textContent = selectedPrescription ? `Receta #${selectedPrescription.id}` : 'Selecciona una receta';
-    }
-
-    if (doctor) {
-      doctor.textContent = `Doctor: ${selectedPrescription?.doctor_name || 'Sin asignar'}`;
-    }
-
-    if (date) {
+    if (title) title.textContent = selectedPrescription ? `Receta #${selectedPrescription.id}` : 'Selecciona una receta';
+    if (doctor) doctor.textContent = `Doctor: ${selectedPrescription?.doctor_name || 'Sin asignar'}`;
+    if (date)
       date.textContent = `Fecha de receta: ${selectedPrescription?.issued_at ? formatDateTime(selectedPrescription.issued_at) : 'Sin fecha'}`;
-    }
-
-    if (diagnosis) {
-      diagnosis.textContent = `Diagnostico: ${selectedPrescription?.diagnosis || 'Sin diagnostico capturado'}`;
-    }
-
-    if (instructions) {
+    if (diagnosis) diagnosis.textContent = `Diagnostico: ${selectedPrescription?.diagnosis || 'Sin diagnostico capturado'}`;
+    if (instructions)
       instructions.textContent = `Indicaciones: ${selectedPrescription?.general_instructions || 'Sin indicaciones generales'}`;
-    }
 
-    if (!list) {
-      return;
-    }
+    if (!list) return;
 
     if (!selectedPrescription) {
       list.innerHTML = emptyState('Selecciona una receta del historial para ver el desglose.');
@@ -368,57 +403,41 @@ async function initPatientPage() {
     }
 
     const items = selectedPrescription?.items || [];
+
+    // UI de acciones: se mantiene el contenido informativo, sin botones.
     list.innerHTML = items.length
-      ? items.map((medication) => `
+      ? items
+          .map(
+            (medication) => `
           <article class="med-card">
             <div>
               <strong>${escapeHtml(medication.name)}</strong>
               <div class="med-meta">${medication.dose_mg} mg · ${escapeHtml(medication.frequency || 'Frecuencia por definir')} · ${formatTime(medication.time)}</div>
               <p>${escapeHtml(medication.notes || 'Sin observaciones')}</p>
             </div>
-            <div class="med-actions">
-              <button class="btn btn-sm ${medication.notifications_paused ? 'btn-success' : 'btn-danger'}" data-action="pause" data-item-id="${medication.id}" data-prescription-id="${selectedPrescriptionId}">
-                ${medication.notifications_paused ? 'Activar' : 'Pausar'} notifs
-              </button>
-            </div>
-            <span class="status-badge ${medication.notifications_paused ? 'paused' : 'scheduled'}">${medication.notifications_paused ? 'Pausado' : (medication.duration_days ? `${medication.duration_days} dias` : 'Activa')}</span>
+            <span class="status-badge ${medication.notifications_paused ? 'paused' : 'scheduled'}">${
+              medication.notifications_paused ? 'Pausado' : medication.duration_days ? `${medication.duration_days} dias` : 'Activa'
+            }</span>
           </article>
-        `).join('')
+        `
+          )
+          .join('')
       : emptyState('Esta receta no tiene medicamentos capturados.');
-
   }
 
   function bindRecipeHistory() {
     const historyList = document.getElementById('recipe-history-list');
-    if (!historyList || historyList.dataset.bound === 'true') {
-      return;
-    }
+    if (!historyList || historyList.dataset.bound === 'true') return;
 
     historyList.dataset.bound = 'true';
     historyList.addEventListener('click', (event) => {
       const button = event.target.closest('[data-prescription-id]');
-      if (!button || !currentPatient) {
-        return;
-      }
+      if (!button || !currentPatient) return;
 
       selectedPrescriptionId = Number(button.dataset.prescriptionId);
       renderRecipeHistory(currentPatient);
       renderSelectedRecipe(currentPatient);
     });
-  }
-
-  function handlePrintRecipe() {
-    window.print();
-  }
-
-  function bindRecipePrint() {
-    const button = document.getElementById('download-pdf');
-    if (!button || button.dataset.bound === 'true') {
-      return;
-    }
-
-    button.dataset.bound = 'true';
-    button.addEventListener('click', handlePrintRecipe);
   }
 
   function renderProfile(patient) {
@@ -431,41 +450,187 @@ async function initPatientPage() {
         ? `Registro en sistema: ${formatDateTime(patient.created_at)}`
         : 'Registro en sistema disponible';
     }
+
+    const profileNameInput = document.getElementById('profile-name-input');
+    if (profileNameInput) profileNameInput.value = patient.name || '';
+
+    const profileEmailInput = document.getElementById('profile-email-input');
+    if (profileEmailInput) profileEmailInput.value = patient.email || '';
+
+    const profilePhoneInput = document.getElementById('profile-phone-input');
+    if (profilePhoneInput) profilePhoneInput.value = patient.phone || '';
+
+    const profileChannelInput = document.getElementById('profile-channel-input');
+    if (profileChannelInput) profileChannelInput.value = patient.reminder_channel || 'email';
+  }
+
+  function bindProfileForms(patient) {
+    if (!window.location.pathname.includes('profile.html')) return;
+
+    const profileForm = document.getElementById('patient-profile-form');
+    if (profileForm && profileForm.dataset.bound !== 'true') {
+      profileForm.dataset.bound = 'true';
+      profileForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const name = document.getElementById('profile-name-input')?.value.trim() || '';
+        const email = document.getElementById('profile-email-input')?.value.trim() || '';
+        const phone = document.getElementById('profile-phone-input')?.value.trim() || '';
+        const reminder_channel = document.getElementById('profile-channel-input')?.value || 'email';
+        const result = document.getElementById('profile-update-result');
+
+        if (!name) {
+          if (result) {
+            result.textContent = 'El nombre es obligatorio.';
+            result.className = 'form-message error';
+          }
+          return;
+        }
+
+        if (result) {
+          result.textContent = ''; 
+          result.className = 'form-message';
+        }
+
+        try {
+          await window.MediAlertAPI.updatePatientProfile(patient.curp, {
+            name,
+            email,
+            phone,
+            reminder_channel
+          });
+
+          const updated = await window.MediAlertAPI.getPatientData(patient.curp);
+          currentPatient = updated.patient;
+          renderProfile(currentPatient);
+          renderDashboard(currentPatient);
+          renderSidebar(currentPatient);
+          window.MediAlertMain.state.user.name = currentPatient.name;
+          window.MediAlertMain.updateHeader();
+
+          if (result) {
+            result.textContent = 'Perfil actualizado correctamente.';
+            result.className = 'form-message success';
+          }
+        } catch (error) {
+          if (result) {
+            result.textContent = error.message;
+            result.className = 'form-message error';
+          }
+          window.MediAlertMain?.showToast?.(error.message, 'error');
+        }
+      });
+    }
+
+    const passwordForm = document.getElementById('patient-password-form');
+    if (passwordForm && passwordForm.dataset.bound !== 'true') {
+      passwordForm.dataset.bound = 'true';
+      passwordForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const currentPassword = document.getElementById('current-password')?.value || '';
+        const newPassword = document.getElementById('new-password')?.value || '';
+        const confirmPassword = document.getElementById('confirm-password')?.value || '';
+        const result = document.getElementById('password-update-result');
+
+        if (!currentPassword || !newPassword || !confirmPassword) {
+          if (result) {
+            result.textContent = 'Completa todos los campos de contraseña.';
+            result.className = 'form-message error';
+          }
+          return;
+        }
+
+        if (newPassword.length < 6) {
+          if (result) {
+            result.textContent = 'La nueva contraseña debe tener al menos 6 caracteres.';
+            result.className = 'form-message error';
+          }
+          return;
+        }
+
+        if (newPassword !== confirmPassword) {
+          if (result) {
+            result.textContent = 'La confirmación no coincide con la nueva contraseña.';
+            result.className = 'form-message error';
+          }
+          return;
+        }
+
+        if (result) {
+          result.textContent = '';
+          result.className = 'form-message';
+        }
+
+        try {
+          await window.MediAlertAPI.changePatientPassword(patient.curp, {
+            current_password: currentPassword,
+            new_password: newPassword
+          });
+
+          if (result) {
+            result.textContent = 'Contraseña actualizada correctamente.';
+            result.className = 'form-message success';
+          }
+
+          passwordForm.reset();
+        } catch (error) {
+          if (result) {
+            result.textContent = error.message;
+            result.className = 'form-message error';
+          }
+          window.MediAlertMain?.showToast?.(error.message, 'error');
+        }
+      });
+    }
   }
 
   function bindAppointmentForm(patient) {
     const form = document.getElementById('appointment-form');
-    if (!form || form.dataset.bound === 'true') {
-      return;
-    }
+    if (!form || form.dataset.bound === 'true') return;
 
     form.dataset.bound = 'true';
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+
       const date = document.getElementById('appointment-date').value;
       const time = document.getElementById('appointment-time').value;
       const reason = document.getElementById('appointment-reason')?.value.trim() || '';
 
       try {
         await window.MediAlertAPI.requestAppointment(patient.curp, date, time, reason);
-        window.MediAlertMain.showToast('Solicitud de cita enviada', 'success');
-        window.location.reload();
+        window.MediAlertMain?.showToast?.('Solicitud de cita enviada', 'success');
+
+        const updated = await window.MediAlertAPI.getPatientData(patient.curp);
+        currentPatient = updated.patient;
+
+        renderDashboard(currentPatient);
+        renderRecipeHistory(currentPatient);
+        renderSelectedRecipe(currentPatient);
+
+        await loadTodayReminders(currentPatient.curp);
       } catch (error) {
-        window.MediAlertMain.showToast(error.message, 'error');
+        window.MediAlertMain?.showToast?.(error.message, 'error');
       }
     });
   }
 
+  function bindRecipePrint() {
+    const button = document.getElementById('download-pdf');
+    if (!button || button.dataset.bound === 'true') return;
+
+    button.dataset.bound = 'true';
+    button.addEventListener('click', () => window.print());
+  }
+
   async function loadTodayReminders(curp) {
     const reminderList = document.getElementById('today-medications-list');
-    if (!reminderList) {
-      return;
-    }
+    if (!reminderList) return;
 
     try {
       const data = await window.MediAlertAPI.getReminderOverview(curp);
       renderReminderStats(data.stats || {});
-      renderReminderList(data.upcoming || [], curp);
+      renderReminderList(data.upcoming || []);
       renderReminderHistory(data.history || []);
     } catch (error) {
       reminderList.innerHTML = emptyState(error.message || 'No se pudieron cargar los recordatorios automaticos.');
@@ -473,102 +638,61 @@ async function initPatientPage() {
     }
   }
 
-  function bindReminderActions(patient) {
-    const reminderList = document.getElementById('today-medications-list');
-    if (!reminderList || reminderList.dataset.bound === 'true') {
-      return;
-    }
-
-    reminderList.dataset.bound = 'true';
-    reminderList.addEventListener('click', async (event) => {
-      const button = event.target.closest('[data-action][data-item-id]');
-      if (!button || !patient?.curp) {
-        return;
-      }
-
-      const action = button.dataset.action;
-      const itemId = Number(button.dataset.itemId);
-      button.disabled = true;
-      const wasPaused = button.textContent.includes('Activar');
-
-      try {
-        if (action === 'pause') {
-          await window.MediAlertAPI.pauseMedication(patient.curp, itemId);
-          window.MediAlertMain.showToast(wasPaused ? 'Notificaciones activadas' : 'Notificaciones pausadas', 'success');
-        } else {
-          await window.MediAlertAPI.recordMedicationTake(patient.curp, itemId, action);
-          const labels = { take: 'Toma registrada', skip: 'Dosis omitida', snooze: 'Recordatorio pospuesto 30 min' };
-          window.MediAlertMain.showToast(labels[action] || 'Accion registrada', 'success');
-        }
-        await loadTodayReminders(patient.curp);
-      } catch (error) {
-        window.MediAlertMain.showToast(error.message, 'error');
-        button.disabled = false;
-      }
-    });
-  }
-
   function renderReminderStats(stats) {
     setText('today-adherence', String(stats.sent_today || 0));
     setText('today-meds', String(stats.active_medications || 0));
     setText('next-dose', stats.next_reminder ? formatDateTime(stats.next_reminder) : '--:--');
+
     const count = document.getElementById('today-takes-count');
-    if (count) {
-      count.textContent = `(${stats.active_medications || 0})`;
-    }
+    if (count) count.textContent = `(${stats.active_medications || 0})`;
   }
 
-  function renderReminderList(reminders, curp) {
+  function renderReminderList(reminders) {
     const reminderList = document.getElementById('today-medications-list');
-    if (!reminderList) {
-      return;
-    }
+    if (!reminderList) return;
 
+    // Se muestra info solamente (sin acciones de tomar/posponer/omitir/pausar).
     reminderList.innerHTML = reminders.length
-      ? reminders.map((reminder) => `
-          <article class="med-card">
-            <div>
-              <strong>${escapeHtml(reminder.emoji || '💊')} ${escapeHtml(reminder.name)}</strong>
-              <div class="med-meta">${reminder.dose_mg} mg · cada ${reminder.interval_hours || 24} horas</div>
-              <p>Próximo aviso: ${formatDateTime(reminder.scheduled_at)}</p>
-              <p>${escapeHtml(reminder.notes || 'Sin indicaciones adicionales')}</p>
-            </div>
-            <div class="med-actions">
-              <button class="btn btn-sm btn-success" data-action="take" data-item-id="${reminder.item_id}">Tomar</button>
-              <button class="btn btn-sm btn-warning" data-action="snooze" data-item-id="${reminder.item_id}">Posponer</button>
-              <button class="btn btn-sm btn-secondary" data-action="skip" data-item-id="${reminder.item_id}">Omitir</button>
-              <button class="btn btn-sm ${reminder.notifications_paused ? 'btn-success' : 'btn-danger'}" data-action="pause" data-item-id="${reminder.item_id}">
-                ${reminder.notifications_paused ? 'Activar' : 'Pausar'} notifs ⏸️
-              </button>
-            </div>
-          </article>
-        `).join('')
+      ? reminders
+          .map(
+            (reminder) => `
+        <article class="med-card">
+          <div>
+            <strong>${renderMedicationIcon(reminder)} ${escapeHtml(reminder.name)}</strong>
+            <div class="med-meta">${reminder.dose_mg} mg · cada ${reminder.interval_hours || 24} horas</div>
+            <p>Próximo aviso: ${formatDateTime(reminder.scheduled_at)}</p>
+            <p>${escapeHtml(reminder.notes || 'Sin indicaciones adicionales')}</p>
+          </div>
+        </article>
+      `
+          )
+          .join('')
       : emptyState('Aún no hay avisos programados.');
   }
 
   function renderReminderHistory(history) {
     const historyList = document.getElementById('taken-history');
-    if (!historyList) {
-      return;
-    }
+    if (!historyList) return;
 
     const count = document.getElementById('taken-count');
-    if (count) {
-      count.textContent = `(${history.length})`;
-    }
+    if (count) count.textContent = `(${history.length})`;
 
     historyList.innerHTML = history.length
-      ? history.map((item) => `
-          <article class="appointment-card">
-            <div>
-              <strong>${escapeHtml(item.provider || 'scheduler')}</strong>
-              <div class="appointment-meta">${formatDateTime(item.scheduled_for)} · ${escapeHtml(formatNotificationStatus(item.status))}</div>
-              <p>${escapeHtml(item.message_body || 'Recordatorio procesado por el sistema.')}</p>
-            </div>
-            <span class="status-badge ${mapNotificationBadgeClass(item.status)}">${escapeHtml(formatNotificationStatus(item.status))}</span>
-          </article>
-        `).join('')
-      : emptyState('Todavia no hay envios registrados.');
+      ? history
+          .map(
+            (item) => `
+        <article class="appointment-card">
+          <div>
+            <strong>${escapeHtml(item.provider || 'scheduler')}</strong>
+            <div class="appointment-meta">${formatDateTime(item.scheduled_for)} · ${escapeHtml(formatNotificationStatus(item.status))}</div>
+            <p>${escapeHtml(item.message_body || 'Recordatorio procesado por el sistema.')}</p>
+          </div>
+          <span class="status-badge ${mapNotificationBadgeClass(item.status)}">${escapeHtml(formatNotificationStatus(item.status))}</span>
+        </article>
+      `
+          )
+          .join('')
+      : emptyState('Todavía no hay envios registrados.');
   }
 
   function formatNotificationStatus(status) {
@@ -599,17 +723,15 @@ async function initPatientPage() {
 
   function setText(id, value) {
     const element = document.getElementById(id);
-    if (element) {
-      element.textContent = value;
-    }
+    if (element) element.textContent = value;
   }
 
   function escapeHtml(value) {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/"/g, '"')
       .replace(/'/g, '&#39;');
   }
 
@@ -642,6 +764,7 @@ async function initPatientPage() {
       rejected: 'Rechazada',
       scheduled: 'Programada'
     };
+
     return labels[status] || status || 'Pendiente';
   }
 
@@ -651,42 +774,9 @@ async function initPatientPage() {
       initPatientPage();
       return;
     }
-
     document.addEventListener('medialert:ready', initPatientPage, { once: true });
   }
 
-  // Global pause listener para recipe items
-  document.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-action="pause"]');
-    if (!button || !currentPatient) return;
-
-    const itemId = Number(button.dataset.itemId);
-    const prescriptionId = Number(button.dataset.prescriptionId || selectedPrescriptionId);
-    const curp = currentPatient.curp;
-    button.disabled = true;
-    const wasPaused = button.textContent.includes('Activar');
-
-    try {
-      if (prescriptionId) {
-        await window.MediAlertAPI.pausePrescription(curp, prescriptionId);
-        window.MediAlertMain.showToast(wasPaused ? 'Receta activada' : 'Receta pausada', 'success');
-      } else {
-        await window.MediAlertAPI.pauseMedication(curp, itemId);
-        window.MediAlertMain.showToast(wasPaused ? 'Notificaciones activadas' : 'Notificaciones pausadas', 'success');
-      }
-      
-      // Recargar data
-      const response = await window.MediAlertAPI.getPatientData(curp);
-      currentPatient = response.patient;
-      renderRecipeHistory(currentPatient);
-      renderSelectedRecipe(currentPatient);
-      await loadTodayReminders(curp);
-    } catch (error) {
-      window.MediAlertMain.showToast(error.message, 'error');
-    } finally {
-      button.disabled = false;
-    }
-  });
-
   document.addEventListener('DOMContentLoaded', bootstrapPatientPage);
 })();
+

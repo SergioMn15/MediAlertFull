@@ -150,7 +150,7 @@ function initializeDemoData() {
           time: '08:00:00',
           duration_days: 30,
           notes: 'Tomar despues del desayuno',
-          emoji: '💊'
+          emoji: ''
         },
         {
           id: 2,
@@ -161,7 +161,7 @@ function initializeDemoData() {
           time: '14:00:00',
           duration_days: 30,
           notes: 'Tomar con alimentos',
-          emoji: '🩺'
+          emoji: ''
         }
       ]
     }
@@ -308,7 +308,7 @@ async function ensureDatabaseSchema() {
       time TIME NOT NULL,
       duration_days INTEGER,
       notes TEXT,
-      emoji VARCHAR(10) DEFAULT '💊'
+      emoji VARCHAR(10) DEFAULT ''
     )
   `);
 
@@ -325,7 +325,7 @@ async function ensureDatabaseSchema() {
       dose_mg INTEGER NOT NULL,
       time TIME NOT NULL,
       notes TEXT,
-      emoji VARCHAR(10) DEFAULT '💊',
+      emoji VARCHAR(10) DEFAULT '',
       prescribed_by VARCHAR(100),
       prescribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
@@ -497,7 +497,7 @@ async function ensureDatabaseDemoData() {
         '08:00:00',
         30,
         'Tomar despues del desayuno',
-        '💊',
+        '',
         'Paracetamol',
         50,
         'Cada 8 horas',
@@ -505,7 +505,7 @@ async function ensureDatabaseDemoData() {
         '12:00:00',
         5,
         'Prueba',
-        '💊'
+        ''
       ]
     );
   }
@@ -526,13 +526,13 @@ async function ensureDatabaseDemoData() {
         50,
         '08:00:00',
         'Tomar despues del desayuno',
-        '💊',
+        '',
         'Dra. Laura Hernandez',
         'Metformina',
         850,
         '14:00:00',
         'Tomar con alimentos',
-        '🩺'
+        ''
       ]
     );
   }
@@ -562,15 +562,15 @@ async function initDatabase() {
 
     console.log('🔗 Test conexion: SELECT 1');
     await db.query('SELECT 1');
-    console.log('✅ Conexion OK');
+    console.log('Conexion OK');
 
-    console.log('📋 Creando schema...');
+    console.log('Creando schema...');
     await ensureDatabaseSchema();
-    console.log('✅ Schema OK');
+    console.log('Schema OK');
 
     console.log('💾 Insertando demo data...');
     await ensureDatabaseDemoData();
-    console.log('✅ Demo data OK');
+    console.log('Demo data OK');
 
     useDatabase = true;
     app.set('db', db);
@@ -632,7 +632,7 @@ initDatabase().then(async () => {
   if (useDatabase) {
     console.log('🔄 Iniciando sesiones de WhatsApp guardadas...');
     await initializeSavedSessions();
-    console.log('✅ Sesiones de WhatsApp inicializadas');
+    console.log('Sesiones de WhatsApp inicializadas');
   }
   
   startServer(PORT);

@@ -31,7 +31,7 @@ SELECT
     50,
     '08:00:00',
     'Tomar después del desayuno',
-    '💊',
+    '',
     d.name
 FROM patients p, doctors d
 WHERE p.curp = 'TEST010101HDFAAA09' AND d.username = 'doctor1'
@@ -44,7 +44,7 @@ SELECT
     850,
     '14:00:00',
     'Tomar con alimentos',
-    '🩺',
+    '',
     d.name
 FROM patients p, doctors d
 WHERE p.curp = 'TEST010101HDFAAA09' AND d.username = 'doctor1'

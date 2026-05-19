@@ -120,7 +120,7 @@ function mapPrescriptionItemToMedication(item, prescription, doctorName = 'Docto
     duration_days: item.duration_days || null,
     notes: item.notes || '',
     notifications_paused: item.notifications_paused ?? false,
-    emoji: item.emoji || '💊',
+    emoji: item.emoji || '',
     prescribed_by: doctorName,
     prescribed_at: prescription.issued_at
   };
@@ -299,7 +299,7 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
 
       const prescription = prescriptionResult.rows[0];
       const insertedItems = [];
-      console.log('📝 Insertando', items.length, 'items a prescription', prescription.id);
+      console.log('Insertando', items.length, 'items a prescription', prescription.id);
       
       for (const item of items) {
         const itemResult = await query(
@@ -313,12 +313,12 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
             item.time,
             item.duration_days || null,
             item.notes || '',
-            item.emoji || '💊'
+            item.emoji || ''
           ]
         );
         insertedItems.push(itemResult.rows[0]);
       }
-      console.log('✅ Insertados', insertedItems.length, 'items. Respuesta OK');
+      console.log('Insertados', insertedItems.length, 'items. Respuesta OK');
 
       return res.status(201).json({
         success: true,
@@ -365,25 +365,19 @@ router.post('/prescriptions', verifyToken, requireDoctor, async (req, res) => {
         time: item.time,
         duration_days: item.duration_days || null,
         notes: item.notes || '',
-        emoji: item.emoji || '💊'
+        emoji: item.emoji || ''
       }))
     };
 
     demo.prescriptions[patient.id].unshift(prescription);
-    demo.medications[patient.id] = prescription.items.map((item) => mapPrescriptionItemToMedication(item, prescription, req.user.name));
-
-    console.log('✅ Demo: Receta creada con', prescription.items.length, 'items');
 
     return res.status(201).json({
       success: true,
-      message: 'Receta medica con ' + prescription.items.length + ' medicamentos creada correctamente',
-      prescription: {
-        ...prescription,
-        doctor_name: req.user.name
-      }
+      message: 'Receta medica creada correctamente',
+      prescription
     });
   } catch (error) {
-    console.error('💥 Error al crear receta medica:', error);
+    console.error('Error al crear receta:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -852,14 +846,14 @@ router.put('/prescriptions/:prescriptionId', verifyToken, requireDoctor, async (
             `UPDATE prescription_items 
              SET name = $1, dose_mg = $2, frequency = $3, interval_hours = $4, time = $5, duration_days = $6, notes = $7, emoji = $8
              WHERE id = $9 RETURNING *`,
-            [item.name, item.dose_mg, item.frequency || '', item.interval_hours || 24, item.time, item.duration_days || null, item.notes || '', item.emoji || '💊', item.id]
+            [item.name, item.dose_mg, item.frequency || '', item.interval_hours || 24, item.time, item.duration_days || null, item.notes || '', item.emoji || '', item.id]
           );
           processedItems.push(updateResult.rows[0]);
         } else {
           // Insertar nuevo item
           const insertResult = await query(
             'INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, interval_hours, time, duration_days, notes, emoji) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
-            [prescriptionId, item.name, item.dose_mg, item.frequency || '', item.interval_hours || 24, item.time, item.duration_days || null, item.notes || '', item.emoji || '💊']
+            [prescriptionId, item.name, item.dose_mg, item.frequency || '', item.interval_hours || 24, item.time, item.duration_days || null, item.notes || '', item.emoji || '']
           );
           processedItems.push(insertResult.rows[0]);
         }
@@ -1153,4 +1147,178 @@ router.get('/whatsapp/check', verifyToken, requireDoctor, async (req, res) => {
   }
 });
 
+// Centro de notificaciones - logs de envíos por doctor
+router.get('/:id/notification-logs', verifyToken, requireDoctor, requireSameDoctor, async (req, res) => {
+  try {
+    const doctorId = req.user.id;
+    const { patientId, channel, status, from, to, page = 1, limit = 20 } = req.query;
+
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    const safePage = Math.max(1, parseInt(page));
+    const safeLimit = Math.min(100, Math.max(1, parseInt(limit)));
+    const offset = (safePage - 1) * safeLimit;
+
+    // Usar scheduled_for como referencia de filtro de fechas
+    const fromTs = from ? `${from}T00:00:00.000Z` : null;
+    const toTs = to ? `${to}T23:59:59.999Z` : null;
+
+    if (isDb) {
+      const { query } = require('../config/db');
+
+      const params = [];
+      let idx = 1;
+
+      let baseWhere = `pr.doctor_id = $${idx}`;
+      params.push(doctorId);
+      idx++;
+
+      if (patientId) {
+        baseWhere += ` AND nl.patient_id = $${idx}`;
+        params.push(patientId);
+        idx++;
+      }
+
+      if (channel) {
+        baseWhere += ` AND nl.channel = $${idx}`;
+        params.push(channel);
+        idx++;
+      }
+
+      if (status) {
+        baseWhere += ` AND nl.status = $${idx}`;
+        params.push(status);
+        idx++;
+      }
+
+      if (fromTs) {
+        baseWhere += ` AND nl.scheduled_for >= $${idx}`;
+        params.push(fromTs);
+        idx++;
+      }
+
+      if (toTs) {
+        baseWhere += ` AND nl.scheduled_for <= $${idx}`;
+        params.push(toTs);
+        idx++;
+      }
+
+      const q = `
+        SELECT
+          nl.id,
+          nl.patient_id,
+          p.name AS patient_name,
+          p.curp AS patient_curp,
+          nl.prescription_item_id,
+          COALESCE(pi.name, '') AS item_name,
+          nl.channel,
+          nl.recipient,
+          nl.scheduled_for,
+          nl.sent_at,
+          nl.status,
+          nl.provider,
+          nl.error_message,
+          nl.message_body
+        FROM notification_logs nl
+        JOIN prescription_items pi ON pi.id = nl.prescription_item_id
+        JOIN prescriptions pr ON pr.id = pi.prescription_id
+        JOIN patients p ON p.id = nl.patient_id
+        WHERE ${baseWhere}
+        ORDER BY nl.scheduled_for DESC, nl.sent_at DESC
+        LIMIT $${idx} OFFSET $${idx + 1}
+      `;
+
+      params.push(safeLimit, offset);
+
+      const logsResult = await query(q, params);
+
+      // Conteo fallidos y total con mismos filtros
+      const countParams = params.slice(0, params.length - 2);
+      const countBaseWhere = baseWhere;
+
+      const failedCountQ = `
+        SELECT COUNT(*)::int AS failed_count
+        FROM notification_logs nl
+        JOIN prescription_items pi ON pi.id = nl.prescription_item_id
+        JOIN prescriptions pr ON pr.id = pi.prescription_id
+        JOIN patients p ON p.id = nl.patient_id
+        WHERE ${countBaseWhere} AND nl.status = 'failed'
+      `;
+
+      const totalCountQ = `
+        SELECT COUNT(*)::int AS total_count
+        FROM notification_logs nl
+        JOIN prescription_items pi ON pi.id = nl.prescription_item_id
+        JOIN prescriptions pr ON pr.id = pi.prescription_id
+        JOIN patients p ON p.id = nl.patient_id
+        WHERE ${countBaseWhere}
+      `;
+
+      // Nota: para failedCountQ y totalCountQ necesitamos reutilizar exactamente los mismos params.
+      // Como en ambas queries el WHERE inicia con los mismos placeholders, usamos el slice ya calculado.
+      const [failedCountRes, totalCountRes] = await Promise.all([
+        query(failedCountQ, countParams),
+        query(totalCountQ, countParams)
+      ]);
+
+      return res.json({
+        success: true,
+        logs: logsResult.rows,
+        failed_count: failedCountRes.rows[0].failed_count,
+        total_count: totalCountRes.rows[0].total_count,
+        pagination: {
+          page: safePage,
+          limit: safeLimit,
+          total: totalCountRes.rows[0].total_count
+        }
+      });
+    }
+
+    // Demo
+    const doctorPatients = Object.values(demo.patients).filter(p => p.doctor_id === doctorId);
+    const patientMap = new Map(doctorPatients.map(p => [String(p.id), p]));
+
+    let logs = [];
+    for (const p of doctorPatients) {
+      const patientLogs = (demo.notificationLogs?.[p.id] || []).slice();
+      // Filtrar por paciente
+      if (patientId && String(p.id) !== String(patientId)) continue;
+      logs = logs.concat(patientLogs.map(l => ({ ...l, patient_id: p.id, patient_name: p.name, patient_curp: p.curp })));
+    }
+
+    if (channel) logs = logs.filter(l => l.channel === channel);
+    if (status) logs = logs.filter(l => l.status === status);
+
+    if (fromTs) logs = logs.filter(l => new Date(l.scheduled_for).getTime() >= new Date(fromTs).getTime());
+    if (toTs) logs = logs.filter(l => new Date(l.scheduled_for).getTime() <= new Date(toTs).getTime());
+
+    logs.sort((a, b) => new Date(b.scheduled_for).getTime() - new Date(a.scheduled_for).getTime());
+
+    const totalCount = logs.length;
+    const failedCount = logs.filter(l => String(l.status).toLowerCase() === 'failed').length;
+
+    const paginated = logs.slice(offset, offset + safeLimit).map(l => {
+      // item_name en demo no siempre existe; intentamos resolver desde prescription_item_id
+      return {
+        ...l,
+        item_name: l.item_name || l.medication_name || ''
+      };
+    });
+
+    return res.json({
+      success: true,
+      logs: paginated,
+      failed_count: failedCount,
+      total_count: totalCount,
+      pagination: { page: safePage, limit: safeLimit, total: totalCount }
+    });
+
+  } catch (error) {
+    console.error('Error en notification-logs:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
+

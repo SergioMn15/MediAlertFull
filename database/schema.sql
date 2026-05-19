@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS prescription_items (
     time TIME NOT NULL,
     duration_days INTEGER,
     notes TEXT,
-    emoji VARCHAR(10) DEFAULT '💊',
+    emoji VARCHAR(10) DEFAULT '',
     interval_hours INTEGER DEFAULT 24,
     notifications_paused BOOLEAN DEFAULT FALSE
 );
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS medications (
     dose_mg INTEGER NOT NULL,
     time TIME NOT NULL,
     notes TEXT,
-    emoji VARCHAR(10) DEFAULT '💊',
+    emoji VARCHAR(10) DEFAULT '',
     prescribed_by VARCHAR(100),
     prescribed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

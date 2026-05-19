@@ -98,6 +98,21 @@ window.MediAlertAPI = {
       body: JSON.stringify(payload)
     });
   },
+  updateClinicalProfile(curp, payload) {
+    return request(`${API_BASE}/patients/${curp}/clinical-profile`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+  },
+
+  changePatientPassword(curp, payload) {
+    return request(`${API_BASE}/patients/${curp}/password`, {
+      method: 'PUT',
+      headers: authHeaders(),
+      body: JSON.stringify(payload)
+    });
+  },
 
   deletePatient(curp) {
     return request(`${API_BASE}/patients/${curp}`, {
@@ -221,6 +236,14 @@ window.MediAlertAPI = {
       headers: authHeaders(false)
     });
   },
+
+  getDoctorNotificationLogs(doctorId, params = {}) {
+    const query = new URLSearchParams(params).toString();
+    return request(`${API_BASE}/doctors/${doctorId}/notification-logs?${query}`, {
+      headers: authHeaders(false)
+    });
+  },
+
 
   requestNewPrescription(curp, data) {
     return request(`${API_BASE}/patients/${curp}/prescriptions/request`, {

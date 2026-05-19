@@ -111,7 +111,7 @@ $newList = @"
       ? reminders.map((reminder) => ``
           <article class="med-card">
             <div>
-              <strong>`${escapeHtml(reminder.emoji || '💊')} `${escapeHtml(reminder.name)}</strong>
+              <strong>`${escapeHtml(reminder.emoji || '')} `${escapeHtml(reminder.name)}</strong>
               <div class="med-meta">`${reminder.dose_mg} mg &middot; cada `${reminder.interval_hours || 24} horas</div>
               <p>Proximo aviso: `${formatDateTime(reminder.scheduled_at)}</p>
               <p>`${escapeHtml(reminder.notes || 'Sin indicaciones adicionales')}</p>
@@ -143,7 +143,7 @@ Write-Host "patient.js done"
 # ── doctor-dashboard.js ──────────────────────────────────────────────────────
 $d = [System.IO.File]::ReadAllText($doctorJs, [System.Text.Encoding]::UTF8)
 
-$d = $d.Replace("|| '??'", "|| '💊'")
+$d = $d.Replace("|| '??'", "|| ''")
 $d = $d.Replace('mg ? ${escapeHtml(medication.frequency', 'mg &middot; ${escapeHtml(medication.frequency')
 $d = $d.Replace('${genderLabel} ? ${stateLabel}', '${genderLabel} &middot; ${stateLabel}')
 $d = $d.Replace("? reciente`", "&middot; reciente`")

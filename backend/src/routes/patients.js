@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { verifyToken, requireDoctor } = require('../middleware/auth');
+const { verifyToken, requireDoctor, requirePatient } = require('../middleware/auth');
 const notifier = require('../services/notifier');
 const { buildUpcomingReminders } = require('../services/reminderEngine');
 
@@ -97,7 +97,7 @@ function mapPrescriptionItemToMedication(item, prescription, doctorName = 'Docto
     duration_days: item.duration_days || null,
     notes: item.notes || '',
     notifications_paused: item.notifications_paused ?? false,
-    emoji: item.emoji || '💊',
+    emoji: item.emoji || '',
     prescribed_by: doctorName,
     prescribed_at: prescription.issued_at
   };
@@ -214,7 +214,7 @@ function buildReminderPayload(activePrescription, medicationTakes, scheduledDate
         dose_mg: item.dose_mg,
         frequency: item.frequency || '',
         notes: item.notes || '',
-        emoji: item.emoji || '💊',
+        emoji: item.emoji || '',
         scheduled_date: scheduledDate,
         scheduled_time: item.time,
         reminder_time: reminderTime,
@@ -522,7 +522,7 @@ router.post('/:curp/medications', verifyToken, requireDoctor, async (req, res) =
         `INSERT INTO prescription_items (prescription_id, name, dose_mg, frequency, time, duration_days, notes, emoji)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *`,
-        [activePrescription.id, name, dose_mg, 'Cada 24 horas', time, 30, notes || '', emoji || '💊']
+        [activePrescription.id, name, dose_mg, 'Cada 24 horas', time, 30, notes || '', emoji || '']
       );
 
       return res.status(201).json({
@@ -569,11 +569,10 @@ router.post('/:curp/medications', verifyToken, requireDoctor, async (req, res) =
       time,
       duration_days: 30,
       notes: notes || '',
-      emoji: emoji || '💊'
+      emoji: emoji || ''
     };
 
     activePrescription.items.push(newItem);
-    demo.medications[patient.id] = activePrescription.items.map((item) => mapPrescriptionItemToMedication(item, activePrescription, req.user.name));
 
     return res.status(201).json({
       success: true,
@@ -901,7 +900,7 @@ router.put('/:curp/clinical-profile', verifyToken, requireDoctor, async (req, re
 });
 
 // PUT: actualizar perfil general del paciente (nombre/email/telefono/canal)
-router.put('/:curp/profile', verifyToken, requireDoctor, async (req, res) => {
+router.put('/:curp/profile', verifyToken, async (req, res) => {
   try {
     const { curp } = req.params;
     const {
@@ -978,6 +977,74 @@ router.put('/:curp/profile', verifyToken, requireDoctor, async (req, res) => {
     });
   } catch (error) {
     console.error('Error al actualizar perfil de paciente:', error);
+    return res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// PUT: actualizar contraseña de paciente (propia cuenta o desde doctor)
+router.put('/:curp/password', verifyToken, async (req, res) => {
+  try {
+    const { curp } = req.params;
+    const { current_password = '', new_password = '' } = req.body;
+
+    if (!new_password || typeof new_password !== 'string' || new_password.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+
+    const demo = getDemoData(req);
+    const isDb = useDatabase(req);
+
+    if (isDb) {
+      const { query } = require('../config/db');
+      const patientResult = await query(
+        'SELECT id, curp, doctor_id, password FROM patients WHERE UPPER(curp) = UPPER($1)',
+        [curp]
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      const patient = patientResult.rows[0];
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      if (req.user.role === 'patient') {
+        const validPassword = await bcrypt.compare(current_password || '', patient.password);
+        if (!validPassword) {
+          return res.status(400).json({ error: 'Contraseña actual incorrecta' });
+        }
+      }
+
+      const hashedPassword = await bcrypt.hash(new_password, 10);
+      await query('UPDATE patients SET password = $1 WHERE id = $2', [hashedPassword, patient.id]);
+    } else {
+      const patient = Object.values(demo.patients).find((item) => normalizeCurp(item.curp) === normalizeCurp(curp));
+      if (!patient) {
+        return res.status(404).json({ error: 'Paciente no encontrado' });
+      }
+
+      if (!ensurePatientAccess(req, res, patient)) {
+        return;
+      }
+
+      if (req.user.role === 'patient') {
+        const validPassword = bcrypt.compareSync(current_password || '', patient.password);
+        if (!validPassword) {
+          return res.status(400).json({ error: 'Contraseña actual incorrecta' });
+        }
+      }
+
+      patient.password = bcrypt.hashSync(new_password, 10);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Contraseña actualizada correctamente'
+    });
+  } catch (error) {
+    console.error('Error al actualizar contraseña de paciente:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
